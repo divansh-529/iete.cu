@@ -1,15 +1,15 @@
-# 09 — Going Live (free tier + GoDaddy domain)
+# 09 â€” Going Live (free tier + GoDaddy domain)
 
 This puts the portal on your own domain at no monthly cost, following [08-free-tier-hosting.md](08-free-tier-hosting.md).
 Replace `yourdomain.in` with the domain you bought. The guide uses **`portal.yourdomain.in`** for the portal and keeps the bare domain free for a public forum website later. You can use the bare domain instead if you prefer.
 
 ```
-visitor ──https──▶ portal.yourdomain.in  (Cloudflare Pages: the React app)
-                        │  /api/*  forwarded by frontend/functions/api/[[path]].js
-                        ▼  with a shared secret + the visitor's IP
+visitor â”€â”€httpsâ”€â”€â–¶ portal.yourdomain.in  (Cloudflare Worker: the React app)
+                        â”‚  /api/*  forwarded by frontend/worker/index.js
+                        â–¼  with a shared secret + the visitor's IP
                    iete-api.onrender.com  (Render: FastAPI, Docker)
-                        │
-                        ▼
+                        â”‚
+                        â–¼
                    Neon Postgres
 ```
 
@@ -36,7 +36,7 @@ git push -u origin main
 ## 2. Database: Neon
 
 1. On neon.tech, create a project named `iete`. This project uses `us-east-2`; put the Render backend in the matching region in step 4.
-2. On the dashboard, choose **Connect**, turn **Connection pooling off**, and copy the connection string (`postgresql://…neon.tech/neondb?sslmode=require`). The app accepts it exactly as copied.
+2. On the dashboard, choose **Connect**, turn **Connection pooling off**, and copy the connection string (`postgresql://â€¦neon.tech/neondb?sslmode=require`). The app accepts it exactly as copied.
 
    Use the direct (non-pooled) string. The pooled one breaks the database driver's prepared statements.
 3. From your own computer, create the tables and the first accounts in the new database:
@@ -61,7 +61,7 @@ Keep this value private. It is used in two places below. Never commit it.
 
 ## 4. Backend: Render
 
-1. Go to **New → Web Service**, choose your GitHub repository, and fill in:
+1. Go to **New â†’ Web Service**, choose your GitHub repository, and fill in:
    - **Root Directory:** `backend`
    - **Language:** Docker (Render picks up `backend/Dockerfile`)
    - **Region:** the same region as the Neon database. For this project that is **Ohio (US East)**, because Neon is in `us-east-2`. Every page makes several database calls, so keep them close.
@@ -84,30 +84,32 @@ This step is free. GoDaddy stays your registrar and you keep paying the yearly r
 
 1. On dash.cloudflare.com, choose **Add a domain**, enter `yourdomain.in`, and pick the **Free** plan.
 2. Cloudflare copies your existing GoDaddy DNS records. If you use GoDaddy or another provider for **email**, check that the MX records are in the list before continuing.
-3. Cloudflare shows two nameservers, such as `xxx.ns.cloudflare.com`. In GoDaddy, go to **My Products → your domain → DNS → Nameservers → Change Nameservers → "I'll use my own nameservers"**, enter both, and save.
+3. Cloudflare shows two nameservers, such as `xxx.ns.cloudflare.com`. In GoDaddy, go to **My Products â†’ your domain â†’ DNS â†’ Nameservers â†’ Change Nameservers â†’ "I'll use my own nameservers"**, enter both, and save.
 4. Wait until Cloudflare marks the domain **Active**. This usually takes under an hour and can take up to 24 hours.
 
-## 6. Frontend: Cloudflare Pages
+## 6. Frontend: Cloudflare Worker
 
-1. Go to **Workers & Pages → Create → Pages → Connect to Git** and choose the repository:
-   - **Framework preset:** None
-   - **Build command:** `npm run build`
-   - **Build output directory:** `dist`
+The portal is a Cloudflare **Worker** with static assets ([frontend/wrangler.jsonc](../frontend/wrangler.jsonc)). It serves the built app, sends every page path to the app, and forwards `/api/*` to Render ([frontend/worker/index.js](../frontend/worker/index.js)). The Worker name in `wrangler.jsonc` (`iete-cu`) must match the Worker's name in Cloudflare.
+
+1. Go to **Workers & Pages â†’ Create â†’ Import a repository**, choose the repository, and name the Worker `iete-cu`.
+2. In the Worker's **Settings â†’ Build**, set:
    - **Root directory:** `frontend`
-2. Under **Environment variables (Production)**, add:
+   - **Build command:** `npm run build`
+   - **Deploy command:** `npx wrangler deploy`
+3. In **Settings â†’ Variables and Secrets**, add:
 
-   | Variable | Value |
-   |---|---|
-   | `BACKEND_URL` | `https://<service-name>.onrender.com` |
-   | `PROXY_SECRET` | the secret from step 3. Choose **Encrypt**. |
-   | `NODE_VERSION` | `24` |
+   | Type | Name | Value |
+   |---|---|---|
+   | Text | `BACKEND_URL` | `https://<service-name>.onrender.com` (no trailing slash) |
+   | Secret | `PROXY_SECRET` | the secret from step 3 |
 
-3. Choose **Save and Deploy**. The site appears at `https://<project>.pages.dev`. Logging in there should already work.
-4. Open the project's **Custom domains** tab, choose **Set up a custom domain**, and enter `portal.yourdomain.in`. Cloudflare creates the DNS record and the HTTPS certificate.
+   Under **Settings â†’ Build â†’ Variables and secrets** (build-time), add `NODE_VERSION` = `24`.
+4. Run a new deployment. The site appears at `https://iete-cu.<account>.workers.dev`, and logging in there should already work.
+5. In **Settings â†’ Domains & Routes**, choose **Add â†’ Custom domain** and enter `portal.yourdomain.in`. Cloudflare creates the DNS record and the HTTPS certificate.
 
 ## 7. Keep the backend awake (optional, recommended)
 
-Render's free plan sleeps after 15 idle minutes, and the next visitor waits up to a minute. `.github/workflows/keepalive.yml` pings the health check every 10 minutes. To turn it on, open GitHub **Settings → Secrets and variables → Actions → Variables** and add:
+Render's free plan sleeps after 15 idle minutes, and the next visitor waits up to a minute. `.github/workflows/keepalive.yml` pings the health check every 10 minutes. To turn it on, open GitHub **Settings â†’ Secrets and variables â†’ Actions â†’ Variables** and add:
 
 `BACKEND_HEALTH_URL` = `https://<service-name>.onrender.com/api/health`
 
@@ -121,9 +123,9 @@ One always-on service fits inside Render's 750 free hours a month. GitHub pauses
 
 ## Updating
 
-Push to `main`. Cloudflare Pages rebuilds the site, and Render rebuilds the backend and runs any new migrations on start.
+Push to `main`. Cloudflare rebuilds the Worker, and Render rebuilds the backend and runs any new migrations on start.
 
 ## Before real data goes in
 
-- **Backups:** the nightly encrypted `pg_dump` from [08 §Backups](08-free-tier-hosting.md#backups-blueprint-15) is not built yet. Until it is, Neon's built-in point-in-time restore (a short window on the free plan) is the only safety net.
-- **Free limits** (check current terms): Neon about 0.5 GB storage, Pages Functions 100,000 requests a day, Render 750 hours a month. All are far above what the forum needs today.
+- **Backups:** the nightly encrypted `pg_dump` from [08 Â§Backups](08-free-tier-hosting.md#backups-blueprint-15) is not built yet. Until it is, Neon's built-in point-in-time restore (a short window on the free plan) is the only safety net.
+- **Free limits** (check current terms): Neon about 0.5 GB storage, Workers 100,000 requests a day, Render 750 hours a month. All are far above what the forum needs today.

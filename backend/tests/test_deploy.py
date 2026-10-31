@@ -1,4 +1,4 @@
-﻿from sqlalchemy import select
+from sqlalchemy import select
 
 from app.auth.models import LoginAttempt
 from app.core.config import Settings, settings

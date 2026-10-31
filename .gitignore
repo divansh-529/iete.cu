@@ -9,6 +9,10 @@ __pycache__/
 node_modules/
 dist/
 
+# Cloudflare Wrangler local state
+.wrangler/
+.dev.vars*
+
 # Env / secrets
 .env
 .env.*
