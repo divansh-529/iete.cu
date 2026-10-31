@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     min_password_length: int = 10
     frontend_base_url: str = "http://localhost:5173"
 
+    @field_validator("proxy_secret")
+    @classmethod
+    def _strip_secret(cls, value: str) -> str:
+        """Quotes and spaces copied along with the value are not part of the secret."""
+        return value.strip().strip("'\"").strip()
+
     @field_validator("database_url")
     @classmethod
     def _psycopg_driver(cls, url: str) -> str:

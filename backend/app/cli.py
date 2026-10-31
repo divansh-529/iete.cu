@@ -170,6 +170,9 @@ def db_check() -> None:
                      "string again from Neon (Connect, pooling off) and paste it unchanged.")
         sys.exit(f"DB CHECK FAILED: {reason.splitlines()[0] if reason else type(e).__name__}")
     print("DB CHECK: connected OK")
+    secret = settings.proxy_secret
+    print(f"PROXY SECRET: {len(secret)} chars ({secret[:4]}…{secret[-2:]})" if secret else
+          "PROXY SECRET: not set (the API accepts direct requests)")
 
 
 def main() -> None:

@@ -25,6 +25,10 @@ def test_forwarded_ip_ignored_without_secret(client, chair, db):
     assert "203.0.113.7" not in {str(ip) for ip in db.scalars(select(LoginAttempt.ip)) if ip}
 
 
+def test_pasted_proxy_secret_is_trimmed():
+    assert Settings(proxy_secret=' "s3cret-value"\n').proxy_secret == "s3cret-value"
+
+
 def test_hosted_postgres_url_uses_psycopg():
     url = Settings(database_url="postgresql://u:p@ep-x.neon.tech/iete?sslmode=require").database_url
     assert url == "postgresql+psycopg://u:p@ep-x.neon.tech/iete?sslmode=require"
