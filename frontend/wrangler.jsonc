@@ -13,7 +13,9 @@
     // Only API calls run the Worker; everything else is served straight from the assets.
     "run_worker_first": ["/api/*"]
   },
-  // BACKEND_URL and PROXY_SECRET are set in the dashboard; don't wipe them on deploy.
+  // The Render backend that /api/* is forwarded to (not a secret).
+  "vars": { "BACKEND_URL": "https://iete-cu.onrender.com" },
+  // PROXY_SECRET is a Secret set in the dashboard (Settings → Variables and Secrets); keep it on deploy.
   "keep_vars": true,
   "observability": { "enabled": true }
 }
