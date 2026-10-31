@@ -1,0 +1,16 @@
+name: Keep backend awake
+
+# Render's free plan sleeps after 15 idle minutes, and the first visitor then waits up to a
+# minute. This pings the health check so the portal stays responsive. One always-on free
+# service fits inside Render's 750 free hours a month. Disable it if you do not need it.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    if: ${{ vars.BACKEND_HEALTH_URL != '' }}
+    steps:
+      - run: curl --fail --silent --show-error --max-time 90 "${{ vars.BACKEND_HEALTH_URL }}"

@@ -1,0 +1,117 @@
+import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import { api } from "../api/client";
+import { useAuth } from "../auth/AuthContext";
+import { BrandLogo } from "../components/Brand";
+import { cx, Spinner } from "../components/ui";
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: string;  // SVG path, 24×24 outline
+  permission?: string;
+}
+
+const NAV: NavItem[] = [
+  { to: "/app", label: "Dashboard", icon: "M3 12 12 4l9 8M5 10v10h5v-6h4v6h5V10" },
+  { to: "/app/org", label: "Organisation", permission: "org.view",
+    icon: "M12 3v5m0 0H6v4m6-4h6v4M4 12h4v4H4zm12 0h4v4h-4zM10 16h4v5h-4zm2-4v4" },
+  { to: "/app/users", label: "Team accounts", permission: "users.view",
+    icon: "M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6m13 9v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8" },
+  { to: "/app/roles", label: "Roles", permission: "permissions.view",
+    icon: "M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6zm-3 9 2 2 4-4" },
+  { to: "/app/audit", label: "Audit log", permission: "audit.view",
+    icon: "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2m0 7h6m-6 4h4" },
+];
+
+function Icon({ d, className }: { d: string; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"
+         strokeLinejoin="round" aria-hidden="true" className={cx("size-5 shrink-0", className)}>
+      <path d={d} />
+    </svg>
+  );
+}
+
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+}
+
+export function AppLayout() {
+  const { me, loading, can } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  if (loading) return <Spinner />;
+  if (!me) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (me.user.must_change_password) return <Navigate to="/change-password" replace />;
+
+  async function logout() {
+    await api("/auth/logout", { method: "POST" }).catch(() => undefined);
+    qc.clear();
+    navigate("/login", { replace: true });
+  }
+
+  const items = NAV.filter((i) => !i.permission || can(i.permission));
+
+  return (
+    <div className="min-h-screen bg-slate-50 md:flex">
+      <aside className="border-b border-slate-200 bg-white md:sticky md:top-0 md:flex md:h-screen md:w-64 md:flex-col md:border-r md:border-b-0">
+        <div className="h-1 bg-gradient-to-r from-brand-600 via-brand-500 to-brand-700" />
+        <div className="flex items-center justify-between gap-2 px-4 py-4">
+          <BrandLogo className="w-44 md:w-52" />
+          <button className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 md:hidden"
+                  onClick={() => setMenuOpen((o) => !o)} aria-label="Toggle menu" aria-expanded={menuOpen}>
+            <Icon d={menuOpen ? "M6 6l12 12M18 6 6 18" : "M4 7h16M4 12h16M4 17h16"} />
+          </button>
+        </div>
+        <div className={cx("px-5 pb-2 text-[11px] font-semibold tracking-wider text-slate-400 uppercase", !menuOpen && "hidden md:block")}>
+          Management Portal
+        </div>
+        <nav className={cx("flex-1 space-y-1 overflow-y-auto px-3 pb-4", !menuOpen && "hidden md:block")}>
+          {items.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.to === "/app"}
+                     onClick={() => setMenuOpen(false)}
+                     className={({ isActive }) => cx(
+                       "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                       isActive
+                         ? "bg-brand-50 text-brand-700 before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r before:bg-brand-600"
+                         : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+                     )}>
+              {({ isActive }) => (
+                <>
+                  <Icon d={item.icon} className={isActive ? "text-brand-600" : "text-slate-400 group-hover:text-slate-600"} />
+                  {item.label}
+                </>
+              )}
+            </NavLink>
+          ))}
+        </nav>
+        <div className={cx("border-t border-slate-200 p-3", !menuOpen && "hidden md:block")}>
+          <div className="flex items-center gap-3 rounded-lg p-2">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-xs font-semibold text-white">
+              {initials(me.user.full_name)}
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium text-slate-900">{me.user.full_name}</div>
+              <div className="truncate text-xs text-slate-500">{me.user.email}</div>
+            </div>
+          </div>
+          <div className="mt-1 grid grid-cols-2 gap-1 text-xs font-medium">
+            <NavLink to="/app/account" onClick={() => setMenuOpen(false)}
+                     className="rounded-md px-2 py-1.5 text-center text-slate-600 hover:bg-slate-100 hover:text-slate-900">My account</NavLink>
+            <button onClick={logout} className="rounded-md px-2 py-1.5 text-slate-600 hover:bg-red-50 hover:text-red-700">Log out</button>
+          </div>
+        </div>
+      </aside>
+      <main className="min-w-0 flex-1 px-4 py-6 sm:px-8 lg:px-10 lg:py-8">
+        <div className="mx-auto max-w-7xl">
+          <Outlet />
+        </div>
+      </main>
+    </div>
+  );
+}

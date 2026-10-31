@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+/* Palette taken from the IETE Student Forum logo (royal blue on white). */
+@theme {
+  --color-brand-50: #eef2fd;
+  --color-brand-100: #dce4fa;
+  --color-brand-200: #bccbf4;
+  --color-brand-300: #8fa6ea;
+  --color-brand-400: #5d7ddc;
+  --color-brand-500: #3758c9;
+  --color-brand-600: #1f3fb0;
+  --color-brand-700: #1a3393;
+  --color-brand-800: #172b77;
+  --color-brand-900: #14245e;
+  --color-brand-950: #0c163b;
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --font-display: "Poppins", "Inter", "Segoe UI", system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-800 antialiased;
+  }
+  h1, h2, h3 {
+    @apply font-display tracking-tight;
+  }
+}
