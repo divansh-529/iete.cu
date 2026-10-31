@@ -30,7 +30,9 @@ class Settings(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def _psycopg_driver(cls, url: str) -> str:
-        """Hosted Postgres providers hand out postgres:// or postgresql:// URLs; use psycopg 3."""
+        """Hosted Postgres providers hand out postgres:// or postgresql:// URLs; use psycopg 3.
+        Quotes and spaces copied along with the value from an .env file are dropped."""
+        url = url.strip().strip("'\"").strip()
         for prefix in ("postgres://", "postgresql://"):
             if url.startswith(prefix):
                 return "postgresql+psycopg://" + url[len(prefix):]

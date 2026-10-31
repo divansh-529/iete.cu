@@ -12,6 +12,7 @@ import sys
 from sqlalchemy import select
 
 from app.audit import service as audit
+from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.errors import AppError
 from app.core.security import hash_password, validate_new_password
@@ -146,6 +147,31 @@ def seed_org() -> None:
         print(f"Created {len(LEADERSHIP)} leadership positions and {len(DEPARTMENTS)} departments.")
 
 
+def db_check() -> None:
+    """Startup check: says which database we are about to use (password masked) and why it fails."""
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.engine import make_url
+
+    try:
+        url = make_url(settings.database_url)
+    except Exception:
+        sys.exit("DB CHECK FAILED: IETE_DATABASE_URL is not a valid postgresql:// address. "
+                 "Paste only the URL: no quotes, no variable name, no spaces.")
+    pw = url.password or ""
+    print(f"DB CHECK: user={url.username} host={url.host} database={url.database} "
+          f"password={len(pw)} chars ({pw[:4]}…) query={dict(url.query)}")
+    try:
+        with create_engine(url).connect() as conn:
+            conn.execute(text("select 1"))
+    except Exception as e:
+        reason = str(getattr(e, "orig", e))
+        if "password authentication failed" in reason:
+            sys.exit("DB CHECK FAILED: wrong database password for this user. Copy the connection "
+                     "string again from Neon (Connect, pooling off) and paste it unchanged.")
+        sys.exit(f"DB CHECK FAILED: {reason.splitlines()[0] if reason else type(e).__name__}")
+    print("DB CHECK: connected OK")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -156,6 +182,7 @@ def main() -> None:
     sub.add_parser("seed-roles")
     sub.add_parser("seed-org")
     sub.add_parser("expire-grants")
+    sub.add_parser("db-check")
     args = parser.parse_args()
 
     if args.command == "create-superadmin":
@@ -164,6 +191,8 @@ def main() -> None:
         seed_roles()
     elif args.command == "seed-org":
         seed_org()
+    elif args.command == "db-check":
+        db_check()
     elif args.command == "expire-grants":
         with SessionLocal() as db:
             print(f"Expired grants marked: {expire_grants(db)}")

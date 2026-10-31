@@ -14,5 +14,6 @@ COPY app ./app
 RUN useradd --create-home appuser
 USER appuser
 
-# Apply pending migrations, then serve. Render provides $PORT.
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Check the database connection (clear message in the deploy log if it fails), apply pending
+# migrations, then serve. Render provides $PORT.
+CMD ["sh", "-c", "python -m app.cli db-check && alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

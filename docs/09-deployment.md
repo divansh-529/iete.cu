@@ -35,7 +35,7 @@ git push -u origin main
 
 ## 2. Database: Neon
 
-1. On neon.tech, create a project named `iete` with **Postgres 17**, in the region closest to India.
+1. On neon.tech, create a project named `iete`. This project uses `us-east-2`; put the Render backend in the matching region in step 4.
 2. On the dashboard, choose **Connect**, turn **Connection pooling off**, and copy the connection string (`postgresql://…neon.tech/neondb?sslmode=require`). The app accepts it exactly as copied.
 
    Use the direct (non-pooled) string. The pooled one breaks the database driver's prepared statements.
@@ -64,7 +64,7 @@ Keep this value private. It is used in two places below. Never commit it.
 1. Go to **New → Web Service**, choose your GitHub repository, and fill in:
    - **Root Directory:** `backend`
    - **Language:** Docker (Render picks up `backend/Dockerfile`)
-   - **Region:** Singapore
+   - **Region:** the same region as the Neon database. For this project that is **Ohio (US East)**, because Neon is in `us-east-2`. Every page makes several database calls, so keep them close.
    - **Instance type:** Free
    - **Health Check Path** (under Advanced): `/api/health`
 2. Add these **Environment Variables**:
