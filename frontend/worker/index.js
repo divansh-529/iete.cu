@@ -8,7 +8,16 @@ export default {
     const url = new URL(request.url);
     if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
 
-    const target = new URL(url.pathname + url.search, env.BACKEND_URL);
+    // Misconfiguration shows up as a readable error instead of a bare 500.
+    let target;
+    try {
+      target = new URL(url.pathname + url.search, env.BACKEND_URL);
+    } catch {
+      return proxyError("BACKEND_URL is not set (or not a full https:// address) in the Worker's runtime Variables and Secrets.");
+    }
+    if (!env.PROXY_SECRET) {
+      return proxyError("PROXY_SECRET is not set in the Worker's runtime Variables and Secrets.");
+    }
     const headers = new Headers(request.headers);
     headers.delete("host");
     headers.set("x-proxy-secret", env.PROXY_SECRET);
@@ -16,11 +25,19 @@ export default {
     headers.set("x-real-client-ip", request.headers.get("cf-connecting-ip") ?? "");
 
     const hasBody = !["GET", "HEAD"].includes(request.method);
-    return fetch(target, {
-      method: request.method,
-      headers,
-      body: hasBody ? request.body : undefined,
-      redirect: "manual",
-    });
+    try {
+      return await fetch(target, {
+        method: request.method,
+        headers,
+        body: hasBody ? request.body : undefined,
+        redirect: "manual",
+      });
+    } catch (e) {
+      return proxyError(`Could not reach the backend at ${target.origin}: ${e}`, 502);
+    }
   },
 };
+
+function proxyError(message, status = 500) {
+  return Response.json({ error: { code: "PROXY_ERROR", message } }, { status });
+}
