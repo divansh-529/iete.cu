@@ -25,3 +25,379 @@
     @apply font-display tracking-tight;
   }
 }
+
+/* Public home page: dark and futuristic. Everything stops for people who ask for reduced motion (below). */
+.home-smooth {
+  scroll-behavior: smooth;
+  background: #05070f;
+}
+.home-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(60rem 40rem at 85% -5%, rgb(31 63 176 / 0.45), transparent 70%),
+    radial-gradient(50rem 40rem at -10% 45%, rgb(14 116 144 / 0.22), transparent 70%),
+    radial-gradient(50rem 40rem at 110% 85%, rgb(180 120 20 / 0.14), transparent 70%),
+    #05070f;
+  color: #e2e8f0;
+}
+.home-heading {
+  font-family: "Space Grotesk", var(--font-display);
+  letter-spacing: -0.01em;
+}
+.home-mono {
+  font-family: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+.home-spotlight {
+  position: fixed;
+  inset: 0;
+  z-index: -5;
+  pointer-events: none;
+  background: radial-gradient(26rem circle at var(--home-x, 50%) var(--home-y, 30%), rgb(56 189 248 / 0.13), transparent 70%);
+}
+.home-grid {
+  position: absolute;
+  inset: 40% -30% -30%;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgb(56 189 248 / 0.28) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(56 189 248 / 0.28) 1px, transparent 1px);
+  background-size: 64px 64px;
+  transform: perspective(520px) rotateX(62deg);
+  mask-image: linear-gradient(to bottom, transparent, black 50%, transparent);
+  animation: home-grid-run 3s linear infinite;
+}
+.home-progress {
+  background: linear-gradient(90deg, #38bdf8, #fbbf24);
+  box-shadow: 0 0 12px #38bdf8;
+}
+.home-logo {
+  box-shadow: 0 0 24px rgb(56 189 248 / 0.45);
+}
+.home-navlink {
+  position: relative;
+}
+.home-navlink::after {
+  content: "";
+  position: absolute;
+  inset: auto 0.75rem 0.25rem;
+  height: 2px;
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+  transform: scaleX(0);
+  transition: transform 0.25s;
+}
+.home-navlink:hover::after {
+  transform: scaleX(1);
+}
+.home-caret {
+  animation: home-blink 1s steps(2) infinite;
+}
+.home-gold {
+  color: #fbbf24;
+  text-shadow: 0 0 34px rgb(251 191 36 / 0.65);
+  animation: home-flicker 5s linear infinite;
+}
+.home-glow {
+  text-shadow: 0 0 22px rgb(56 189 248 / 0.8);
+}
+.home-glitch {
+  position: relative;
+  text-shadow: 0 0 26px rgb(125 211 252 / 0.45);
+}
+.home-glitch::before,
+.home-glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.8;
+}
+.home-glitch::before {
+  color: #22d3ee;
+  animation: home-glitch-a 4.5s steps(1) infinite;
+}
+.home-glitch::after {
+  color: #f472b6;
+  animation: home-glitch-b 4.5s steps(1) infinite;
+}
+.home-button {
+  background: linear-gradient(90deg, #fbbf24, #fde68a, #38bdf8, #fbbf24);
+  background-size: 300% 100%;
+  box-shadow: 0 0 26px rgb(251 191 36 / 0.45);
+  transition: transform 0.2s, box-shadow 0.2s;
+  animation: home-slide 5s linear infinite;
+}
+.home-button:hover {
+  transform: translateY(-3px) scale(1.04);
+  box-shadow: 0 0 44px rgb(251 191 36 / 0.8);
+}
+.home-button-outline {
+  border: 1px solid rgb(125 211 252 / 0.6);
+  background: rgb(56 189 248 / 0.08);
+  box-shadow: inset 0 0 14px rgb(56 189 248 / 0.18);
+  transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.home-button-outline:hover {
+  transform: translateY(-3px);
+  background: rgb(56 189 248 / 0.2);
+  box-shadow: 0 0 26px rgb(56 189 248 / 0.6);
+}
+.home-scrollcue {
+  animation: home-bounce 1.6s ease-in-out infinite;
+}
+.home-reactor {
+  position: relative;
+  aspect-ratio: 1;
+  max-width: 34rem;
+  margin-inline: auto;
+}
+.home-ring {
+  position: absolute;
+  border-radius: 9999px;
+  border: 1px dashed rgb(125 211 252 / 0.55);
+}
+.home-ring::after {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: calc(50% - 5px);
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: #fbbf24;
+  box-shadow: 0 0 16px 3px #fbbf24;
+}
+.home-ring-a {
+  inset: 0;
+  animation: home-spin 18s linear infinite;
+}
+.home-ring-b {
+  inset: 10%;
+  border-style: solid;
+  border-color: rgb(56 189 248 / 0.28);
+  animation: home-spin 11s linear infinite reverse;
+}
+.home-ring-b::after {
+  background: #38bdf8;
+  box-shadow: 0 0 16px 3px #38bdf8;
+}
+.home-ring-c {
+  inset: 18%;
+  border-style: dotted;
+  border-width: 2px;
+  animation: home-spin 26s linear infinite;
+}
+.home-draw {
+  stroke-dasharray: 1;
+  filter: drop-shadow(0 0 7px currentColor);
+  animation: home-draw 2.2s ease-out both, home-breathe 3.5s ease-in-out 2.2s infinite;
+  color: #38bdf8;
+}
+.home-draw-2 {
+  color: #fbbf24;
+  animation-delay: 0.4s, 2.6s;
+}
+.home-draw-3 {
+  animation-delay: 0.8s, 3s;
+}
+.home-pulse-text {
+  font-family: "Space Grotesk", var(--font-display);
+  filter: drop-shadow(0 0 6px #7dd3fc);
+  animation: home-pulse 2.4s ease-in-out infinite;
+}
+.home-rise {
+  animation: home-rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.home-marquee {
+  animation: home-marquee 30s linear infinite;
+}
+.home-marquee:hover {
+  animation-play-state: paused;
+}
+.home-glass {
+  position: relative;
+  border: 1px solid rgb(125 211 252 / 0.2);
+  background: rgb(13 20 44 / 0.72);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 50px rgb(0 0 0 / 0.35);
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.home-glass:hover {
+  border-color: rgb(251 191 36 / 0.7);
+  box-shadow: 0 0 34px rgb(56 189 248 / 0.32);
+}
+.home-tilt {
+  position: relative;
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 0.18s ease-out;
+  will-change: transform;
+}
+.home-tilt::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: 1rem;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(16rem circle at var(--mx, 50%) var(--my, 50%), rgb(125 211 252 / 0.2), transparent 70%);
+  transition: opacity 0.25s;
+}
+.home-tilt:hover::after {
+  opacity: 1;
+}
+.home-icon {
+  border: 1px solid rgb(125 211 252 / 0.45);
+  background: rgb(56 189 248 / 0.12);
+  box-shadow: 0 0 18px rgb(56 189 248 / 0.3);
+  transition: transform 0.35s, color 0.25s, box-shadow 0.25s;
+}
+.group:hover .home-icon {
+  transform: rotate(-8deg) scale(1.12);
+  color: #fde68a;
+  box-shadow: 0 0 28px rgb(251 191 36 / 0.6);
+}
+.home-line {
+  animation: home-rise 0.3s ease-out both;
+}
+.home-timeline {
+  background: linear-gradient(to bottom, #38bdf8, #fbbf24);
+  box-shadow: 0 0 14px #38bdf8;
+}
+.home-node {
+  background: #fbbf24;
+  box-shadow: 0 0 0 4px rgb(5 7 15), 0 0 18px 4px #fbbf24;
+  animation: home-pulse 2s ease-in-out infinite;
+}
+.home-photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, transparent 0 3px, rgb(0 0 0 / 0.05) 3px 4px),
+              linear-gradient(to top, rgb(13 20 44 / 0.5), transparent 30%);
+}
+.home-photo::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: -30%;
+  z-index: 1;
+  height: 30%;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, rgb(125 211 252 / 0.3), transparent);
+  animation: home-scan 5s linear infinite;
+}
+.home-avatar {
+  background: conic-gradient(#38bdf8, #fbbf24, #f472b6, #38bdf8);
+  box-shadow: 0 0 26px rgb(56 189 248 / 0.5);
+  animation: home-spin 6s linear infinite;
+}
+.home-avatar > span {
+  animation: home-spin 6s linear infinite reverse;
+}
+.home-reveal {
+  opacity: 0;
+  transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.home-reveal-up {
+  transform: translateY(40px);
+}
+.home-reveal-left {
+  transform: translateX(-70px) rotate(-2deg);
+}
+.home-reveal-right {
+  transform: translateX(70px) rotate(2deg);
+}
+.home-reveal-zoom {
+  transform: scale(0.82) translateY(30px);
+}
+.home-reveal.home-seen {
+  opacity: 1;
+  transform: none;
+}
+@keyframes home-grid-run {
+  to { background-position: 0 64px, 0 0; }
+}
+@keyframes home-blink {
+  50% { opacity: 0; }
+}
+@keyframes home-flicker {
+  0%, 92%, 96%, 100% { opacity: 1; }
+  94% { opacity: 0.55; }
+}
+@keyframes home-glitch-a {
+  0%, 88%, 100% { opacity: 0; transform: none; clip-path: none; }
+  90% { opacity: 0.8; transform: translate(-5px, 2px); clip-path: inset(10% 0 55% 0); }
+  94% { opacity: 0.8; transform: translate(4px, -2px); clip-path: inset(60% 0 8% 0); }
+}
+@keyframes home-glitch-b {
+  0%, 89%, 100% { opacity: 0; transform: none; clip-path: none; }
+  91% { opacity: 0.8; transform: translate(5px, -1px); clip-path: inset(40% 0 30% 0); }
+  95% { opacity: 0.8; transform: translate(-4px, 2px); clip-path: inset(5% 0 75% 0); }
+}
+@keyframes home-slide {
+  to { background-position: -300% 0; }
+}
+@keyframes home-bounce {
+  50% { transform: translate(-50%, 10px); }
+}
+@keyframes home-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes home-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes home-breathe {
+  50% { opacity: 0.55; }
+}
+@keyframes home-pulse {
+  50% { opacity: 0.55; }
+}
+@keyframes home-rise {
+  from { opacity: 0; transform: translateY(24px); }
+}
+@keyframes home-marquee {
+  to { transform: translateX(calc(-50% - 0.75rem)); }
+}
+@keyframes home-scan {
+  to { top: 130%; }
+}
+@media (max-width: 767px) {
+  /* The costliest effects, which a phone notices most. The animations themselves stay. */
+  .home-glass {
+    backdrop-filter: none;
+    background: rgb(13 20 44 / 0.92);
+    box-shadow: none;
+  }
+  .home-grid, .home-spotlight, .home-photo::after {
+    display: none;
+  }
+  .home-tilt {
+    will-change: auto;
+  }
+  .home-draw {
+    filter: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-smooth {
+    scroll-behavior: auto;
+  }
+  .home-grid, .home-caret, .home-gold, .home-glitch::before, .home-glitch::after, .home-button, .home-scrollcue, .home-ring,
+  .home-draw, .home-pulse-text, .home-rise, .home-marquee, .home-line, .home-node, .home-photo::before, .home-avatar, .home-avatar > span {
+    animation: none;
+  }
+  .home-glitch::before, .home-glitch::after {
+    opacity: 0;
+  }
+  .home-tilt {
+    transform: none;
+  }
+  .home-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

@@ -14,6 +14,7 @@ import { DashboardPage } from "./features/dashboard/DashboardPage";
 import { DocumentsPage } from "./features/documents/DocumentsPage";
 import { FinancePage } from "./features/finance/FinancePage";
 import { MembershipPage } from "./features/finance/MembershipPage";
+import { HomePage } from "./features/home/HomePage";
 import { RecruitmentPage } from "./features/members/RecruitmentPage";
 import { PersonScoresPage } from "./features/scores/PersonScoresPage";
 import { ScoresPage } from "./features/scores/ScoresPage";
@@ -53,6 +54,7 @@ createRoot(document.getElementById("root")!).render(
       <AuthProvider>
         <BrowserRouter>
           <Routes>
+            <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/change-password" element={<ForcedChangePasswordPage />} />
             <Route path="/complete-profile" element={<CompleteProfilePage />} />
