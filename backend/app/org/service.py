@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.audit import service as audit
 from app.core.errors import AppError, forbidden, not_found
+from app.core.time import utcnow
 from app.permissions import engine
 from app.permissions.engine import department_scope, ensure
 from app.org.models import (Department, DepartmentMembership, MemberProfile, Position,
@@ -53,7 +54,7 @@ def active_team_user(db: Session, user_id: int) -> User:
 
 def get_department(db: Session, dept_id: int) -> Department:
     dept = db.get(Department, dept_id)
-    if dept is None:
+    if dept is None or dept.status == "deleted":
         raise not_found("Department")
     return dept
 
@@ -118,7 +119,7 @@ def _dept_snapshot(d: Department) -> dict:
 
 
 def department_summaries(db: Session, visible: set[int] | None, include_archived: bool) -> list[dict]:
-    stmt = select(Department).order_by(Department.name)
+    stmt = select(Department).where(Department.status != "deleted").order_by(Department.name)
     if not include_archived:
         stmt = stmt.where(Department.status == "active")
     if visible is not None:
@@ -213,6 +214,72 @@ def set_department_status(db: Session, actor: User, dept_id: int, archive: bool,
                  "department", dept.id, before=before, after={**_dept_snapshot(dept), "reason": reason})
     db.commit()
     return dept
+
+
+def delete_department(db: Session, actor: User, dept_id: int, reason: str, confirm_name: str) -> dict:
+    """The Chairperson removes a department outright, even while it is in use: everyone is taken
+    out, its positions are vacated and closed, access given through it is revoked, pending recruits
+    are declined and sub-departments move up a level. The department then disappears for good.
+
+    The row itself is kept as 'deleted' (not erased) so past memberships, events and the audit log
+    still say which department it was, as the Chairperson's record-keeping rule requires."""
+    from app.members.models import MemberProposal
+    from app.permissions.models import Grant, PermissionAudit
+
+    if not actor.is_super_admin:
+        raise forbidden("Only the Chairperson can delete a department.")
+    dept = get_department(db, dept_id)
+    if confirm_name.strip().lower() != dept.name.lower():
+        raise AppError(422, "CONFIRMATION_MISMATCH", f"Type the department's name, “{dept.name}”, to confirm.")
+    now, today = utcnow(), _today()
+    summary = {"members_removed": 0, "positions_closed": 0, "grants_revoked": 0, "proposals_declined": 0,
+               "subdepartments_moved": 0}
+
+    for pos in db.scalars(select(Position).where(Position.department_id == dept.id)):
+        for pa, _ in _open_holders(db, [pos.id])[pos.id]:
+            _close_assignment(db, actor, pa, max(today, pa.valid_from), "removed", f"{dept.name} was deleted")
+        if pos.status == "active":
+            summary["positions_closed"] += 1
+        pos.status = "archived"
+        db.execute(update(Position).where(Position.reports_to_position_id == pos.id)
+                   .values(reports_to_position_id=pos.reports_to_position_id))
+    for m in db.scalars(select(DepartmentMembership).where(DepartmentMembership.department_id == dept.id,
+                                                           DepartmentMembership.valid_to.is_(None))):
+        m.valid_to, m.end_reason, m.ended_by = max(today, m.valid_from), "Department deleted", actor.id
+        summary["members_removed"] += 1
+    # Access given to the department, to its positions, or limited to it, all ends now.
+    position_ids = list(db.scalars(select(Position.id).where(Position.department_id == dept.id)))
+    grants = db.scalars(select(Grant).where(
+        Grant.revoked_at.is_(None),
+        ((Grant.subject_type == "department") & (Grant.subject_id == dept.id))
+        | ((Grant.scope_type == "department") & (Grant.scope_id == dept.id))
+        | ((Grant.subject_type == "position") & Grant.subject_id.in_(position_ids or [0])))).all()
+    for g in grants:
+        g.revoked_at, g.revoked_by = now, actor.id
+        db.add(PermissionAudit(actor_id=actor.id, action="revoke", subject_type=g.subject_type,
+                               subject_id=g.subject_id, permission_code=g.permission_code, role_id=g.role_id,
+                               scope_type=g.scope_type, scope_id=g.scope_id, old_value={"grant_id": g.id},
+                               reason=f"Department deleted: {reason}"))
+        summary["grants_revoked"] += 1
+    for p in db.scalars(select(MemberProposal).where(MemberProposal.department_id == dept.id,
+                                                     MemberProposal.status == "pending")):
+        p.status, p.decided_by, p.decided_at = "rejected", actor.id, now
+        p.decision_remarks = f"{dept.name} was deleted"
+        candidate = db.get(User, p.user_id)
+        if candidate.status == "proposed":
+            candidate.status = "rejected"
+        summary["proposals_declined"] += 1
+    for child in db.scalars(select(Department).where(Department.parent_id == dept.id, Department.status != "deleted")):
+        child.parent_id = dept.parent_id
+        summary["subdepartments_moved"] += 1
+
+    before = _dept_snapshot(dept)
+    dept.status = "deleted"
+    audit.record(db, actor.id, "department.delete", "department", dept.id, before=before,
+                 after={**_dept_snapshot(dept), "reason": reason, **summary})
+    engine.clear_cache(db)
+    db.commit()
+    return summary
 
 
 # ---------------------------------------------------------------- positions

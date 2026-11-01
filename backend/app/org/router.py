@@ -6,8 +6,8 @@ from app.auth.deps import current_user, require, require_any, require_any_of
 from app.core.db import get_db
 from app.org import service
 from app.org.models import Term
-from app.org.schemas import (AssignIn, AssignmentOut, ChartNode, DepartmentDetailOut, DepartmentIn,
-                             DepartmentOut, EndAssignmentIn, EndMembershipIn, MemberIn, MembershipOut,
+from app.org.schemas import (AssignIn, AssignmentOut, ChartNode, DeleteDepartmentIn, DepartmentDeletedOut,
+                             DepartmentDetailOut, DepartmentIn, DepartmentOut, EndAssignmentIn, EndMembershipIn, MemberIn, MembershipOut,
                              PersonRef, PositionIn, PositionOut, ProfileIn, ProfileOut, ReasonIn, SelfProfileIn,
                              TermIn, TermOut, TransferIn, UserOrgOut)
 from app.permissions.engine import department_scope, ensure, visible_department_ids
@@ -78,6 +78,13 @@ def restore_department(dept_id: int, body: ReasonIn, actor: User = Depends(requi
                        db: Session = Depends(get_db)):
     service.set_department_status(db, actor, dept_id, False, body.reason)
     return service.department_summaries(db, {dept_id}, True)[0]
+
+
+@router.post("/departments/{dept_id}/delete", response_model=DepartmentDeletedOut)
+def delete_department(dept_id: int, body: DeleteDepartmentIn, actor: User = Depends(require_any("org.manage")),
+                      db: Session = Depends(get_db)):
+    """Chairperson only (checked in the service): remove a department even while it is in use."""
+    return service.delete_department(db, actor, dept_id, body.reason, body.confirm_name)
 
 
 @router.post("/departments/{dept_id}/members", response_model=MembershipOut, status_code=201)

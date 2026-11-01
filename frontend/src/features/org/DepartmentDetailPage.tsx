@@ -1,20 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { api, errorMessage } from "../../api/client";
 import type { DepartmentDetail, Membership } from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
-import { Alert, Badge, Button, Card, Empty, formatDate, PageHeader, Spinner } from "../../components/ui";
+import { Alert, Badge, Button, Card, Empty, Field, formatDate, Input, PageHeader, Spinner } from "../../components/ui";
 import { GrantsCard } from "../permissions/GrantsCard";
 import { ProposeMemberModal } from "../members/ProposeMemberModal";
-import { AddMemberModal, DepartmentFormModal, PositionFormModal, ReasonModal, useOrgRefresh } from "./modals";
+import { AddMemberModal, DepartmentFormModal, FormModal, PositionFormModal, ReasonModal, useOrgRefresh } from "./modals";
 import { PositionList } from "./PositionList";
 
 export function DepartmentDetailPage() {
   const id = Number(useParams().id);
   const { can, me } = useAuth();
   const refresh = useOrgRefresh();
-  const [modal, setModal] = useState<null | "edit" | "position" | "member" | "new-member" | "archive" | "restore">(null);
+  const [modal, setModal] = useState<null | "edit" | "position" | "member" | "new-member" | "archive" | "restore" | "delete">(null);
   const [removing, setRemoving] = useState<Membership | null>(null);
   const dept = useQuery({ queryKey: ["department", id], queryFn: () => api<DepartmentDetail>(`/departments/${id}`) });
 
@@ -39,6 +39,7 @@ export function DepartmentDetailPage() {
                       {canManage && <Button variant="secondary" onClick={() => setModal("edit")}>Edit</Button>}
                       {canManage && <Button variant="secondary" onClick={() => setModal("archive")}>Archive</Button>}
                       {archived && scoped("org.manage") && <Button variant="secondary" onClick={() => setModal("restore")}>Restore</Button>}
+                      {me?.user.is_super_admin && <Button variant="danger" onClick={() => setModal("delete")}>Delete department</Button>}
                     </div>
                   } />
       <div className="grid gap-6 lg:grid-cols-2">
@@ -74,6 +75,7 @@ export function DepartmentDetailPage() {
           </div>
         )}
       </div>
+      {modal === "delete" && <DeleteDepartmentModal d={d} onClose={() => setModal(null)} />}
       {modal === "edit" && <DepartmentFormModal dept={d} onClose={() => setModal(null)} />}
       {modal === "position" && <PositionFormModal departmentId={d.id} onClose={() => setModal(null)} />}
       {modal === "new-member" && <ProposeMemberModal department={d} canManage={scoped("org.manage")}
@@ -93,5 +95,38 @@ export function DepartmentDetailPage() {
                      onSubmit={async (reason) => { await api(`/department-memberships/${removing.id}/end`, { method: "POST", body: { reason } }); refresh(); }} />
       )}
     </>
+  );
+}
+
+/** Chairperson only: delete the department even while it is in use. */
+function DeleteDepartmentModal({ d, onClose }: { d: DepartmentDetail; onClose: () => void }) {
+  const refresh = useOrgRefresh();
+  const navigate = useNavigate();
+  const [confirm, setConfirm] = useState("");
+  const [reason, setReason] = useState("");
+  const held = d.positions.reduce((n, p) => n + p.holders.length, 0);
+  return (
+    <FormModal title={`Delete ${d.name}`} submitLabel="Delete permanently" danger onClose={onClose}
+               onSubmit={async () => {
+                 await api(`/departments/${d.id}/delete`, { method: "POST", body: { reason, confirm_name: confirm } });
+                 refresh();
+                 navigate("/app/org?tab=departments", { replace: true });
+               }}>
+      <Alert tone="amber">
+        <p className="font-medium">This happens straight away and can't be undone:</p>
+        <ul className="mt-1 list-disc pl-5">
+          <li>{d.members.length} member(s) are removed from {d.name}{held ? `, and ${held} position holder(s) lose their position` : ""}.</li>
+          <li>Its {d.positions.length} position(s) are closed and any access given through {d.name} stops.</li>
+          <li>Pending recruits for it are declined; sub-departments move up a level.</li>
+        </ul>
+        <p className="mt-2">People's history, past events and the audit log will still show they were in {d.name}.</p>
+      </Alert>
+      <Field label="Reason (recorded in the audit log)">
+        <Input required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
+      </Field>
+      <Field label={`Type “${d.name}” to confirm`}>
+        <Input required value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="off" />
+      </Field>
+    </FormModal>
   );
 }

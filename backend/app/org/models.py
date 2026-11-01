@@ -9,6 +9,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.db import Base
 
 ORG_STATUSES = ("active", "archived")
+# 'deleted': removed by the Chairperson. Hidden everywhere and cannot be restored, but the row
+# stays so that past memberships, events and the audit log still show which department it was.
+DEPARTMENT_STATUSES = ("active", "archived", "deleted")
 START_REASONS = ("appointed", "promoted", "transferred", "reinstated")
 END_REASONS = ("promoted", "transferred", "resigned", "removed", "term_ended")
 LIFECYCLE_STATUSES = ("onboarding", "probation", "active", "alumni", "removed")
@@ -31,8 +34,10 @@ class Term(Base):
 class Department(Base):
     __tablename__ = "departments"
     __table_args__ = (
-        CheckConstraint(f"status IN {ORG_STATUSES}", name="departments_status_check"),
-        Index("departments_name_unique", text("lower(name)"), unique=True),
+        CheckConstraint(f"status IN {DEPARTMENT_STATUSES}", name="departments_status_check"),
+        # A deleted department's name can be used again.
+        Index("departments_name_unique", text("lower(name)"), unique=True,
+              postgresql_where=text("status <> 'deleted'")),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)

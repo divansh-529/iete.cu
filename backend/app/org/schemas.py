@@ -89,6 +89,19 @@ class MemberIn(BaseModel):
     valid_from: date | None = None
 
 
+class DeleteDepartmentIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+    confirm_name: str = Field(max_length=80)          # must match the department's name
+
+
+class DepartmentDeletedOut(BaseModel):
+    members_removed: int
+    positions_closed: int
+    grants_revoked: int
+    proposals_declined: int
+    subdepartments_moved: int
+
+
 class ReasonIn(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
 
