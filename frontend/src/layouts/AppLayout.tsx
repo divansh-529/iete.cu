@@ -1,11 +1,11 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import { Navigate, NavLink, Outlet, useLocation } from "react-router";
 import { api } from "../api/client";
 import type { MemberProposal } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { BrandLogo } from "../components/Brand";
-import { cx, Spinner } from "../components/ui";
+import { Button, cx, Modal, Spinner } from "../components/ui";
 import { NotificationsPanel, useNotifications } from "../features/notifications/NotificationsPanel";
 
 interface NavItem {
@@ -51,10 +51,10 @@ function initials(name: string) {
 export function AppLayout() {
   const { me, loading, can } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
-  const qc = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const ready = !!me && !me.user.must_change_password;
   const notifications = useNotifications(ready);
   const unread = notifications.data?.unread ?? 0;
@@ -68,9 +68,10 @@ export function AppLayout() {
   if (me.user.must_change_password) return <Navigate to="/change-password" replace />;
 
   async function logout() {
+    setLoggingOut(true);
     await api("/auth/logout", { method: "POST" }).catch(() => undefined);
-    qc.clear();
-    navigate("/login", { replace: true });
+    // Full page load, so nothing of this user stays in memory for whoever signs in next.
+    window.location.replace("/login");
   }
 
   const items = NAV.filter((i) => !i.permission || [i.permission].flat().some((p) => can(p)));
@@ -132,7 +133,7 @@ export function AppLayout() {
           <div className="mt-1 grid grid-cols-2 gap-1 text-xs font-medium">
             <NavLink to="/app/account" onClick={() => setMenuOpen(false)}
                      className="rounded-md px-2 py-1.5 text-center text-slate-600 hover:bg-slate-100 hover:text-slate-900">My account</NavLink>
-            <button onClick={logout} className="rounded-md px-2 py-1.5 text-slate-600 hover:bg-red-50 hover:text-red-700">Log out</button>
+            <button onClick={() => setConfirmLogout(true)} className="rounded-md px-2 py-1.5 text-slate-600 hover:bg-red-50 hover:text-red-700">Log out</button>
           </div>
         </div>
       </aside>
@@ -142,6 +143,13 @@ export function AppLayout() {
         </div>
       </main>
       {panelOpen && <NotificationsPanel onClose={() => setPanelOpen(false)} />}
+      <Modal title="Log out?" open={confirmLogout} onClose={() => setConfirmLogout(false)}>
+        <p className="text-sm text-slate-600">Are you sure you want to log out?</p>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => setConfirmLogout(false)} disabled={loggingOut}>Cancel</Button>
+          <Button onClick={logout} disabled={loggingOut}>{loggingOut ? "Logging out…" : "Yes, log out"}</Button>
+        </div>
+      </Modal>
     </div>
   );
 }
