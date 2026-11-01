@@ -24,6 +24,7 @@ export interface Me {
   user: User;
   permissions: EffectivePermission[];
   all_permissions: boolean;
+  profile_complete: boolean;
 }
 
 export interface UserPage {
@@ -145,6 +146,7 @@ export interface DepartmentDetail extends Department {
 
 export interface Profile {
   uid: string | null;
+  iete_membership_id: string | null;
   phone: string | null;
   branch: string | null;
   year_of_study: number | null;
@@ -401,4 +403,43 @@ export interface PermissionAuditRow {
   new_value: Record<string, unknown> | null;
   reason: string | null;
   created_at: string;
+}
+
+export type DocumentStatus = "draft" | "submitted" | "approved" | "rejected" | "final" | "archived";
+
+export interface FolderList {
+  folders: { id: number; name: string; document_count: number }[];
+  can_upload: boolean;
+  can_manage: boolean;
+}
+
+export interface DocumentVersion {
+  id: number;
+  version_no: number;
+  original_filename: string;
+  mime_type: string;
+  size_bytes: number;
+  uploaded_by: PersonRef;
+  uploaded_at: string;
+}
+
+export interface DocumentSummary {
+  id: number;
+  title: string;
+  category: string | null;
+  description: string | null;
+  status: DocumentStatus;
+  folder: Ref;
+  event: Ref | null;
+  created_by: PersonRef;
+  created_at: string;
+  current_version: DocumentVersion;
+}
+
+export interface DocumentDetail extends DocumentSummary {
+  versions: DocumentVersion[];
+  reviews: { from_status: string | null; to_status: string; remarks: string | null; reviewer: PersonRef; created_at: string }[];
+  allowed_reviews: string[];
+  can_upload_version: boolean;
+  can_delete: boolean;
 }

@@ -2,8 +2,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
 import { api } from "../../api/client";
-import type { AppNotification, EventStatus, NotificationPage } from "../../api/types";
+import type { AppNotification, DocumentStatus, EventStatus, NotificationPage } from "../../api/types";
 import { cx, Empty, relativeTime } from "../../components/ui";
+import { DOCUMENT_STATUS } from "../documents/DocumentModal";
 import { EVENT_STATUS } from "../events/status";
 
 /** Unread count for the sidebar; the portal checks every minute. */
@@ -30,6 +31,9 @@ function describe(n: AppNotification): { text: string; to: string } {
     case "event.needs_review": return { text: `${p.by} proposed “${p.name}”. It needs your review.`, to: event };
     case "event.needs_approval": return { text: `“${p.name}” is waiting for your approval`, to: event };
     case "event.team_added": return { text: `${p.by} added you to “${p.name}” as ${p.event_role}`, to: event };
+    case "document.submitted": return { text: `${p.by} submitted “${p.title}” for your review`, to: `/app/documents?open=${p.document_id}` };
+    case "document.reviewed": return { text: `${p.by} marked “${p.title}” as ${DOCUMENT_STATUS[p.to_status as DocumentStatus]?.[0] ?? p.to_status}`
+                                         + (p.remarks ? `: “${p.remarks}”` : ""), to: `/app/documents?open=${p.document_id}` };
     case "score.round_opened": return { text: `Scoring is open: “${p.title}”. Please give your scores.`, to: "/app/scores?tab=score" };
     case "score.published": return { text: `“${p.title}” score cards are published. See yours.`, to: "/app/scores" };
     case "account.proposed": return { text: `${p.by} proposed ${p.name} for ${p.department}. Waiting for your approval.`, to: "/app/recruitment" };

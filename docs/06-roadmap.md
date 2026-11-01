@@ -88,7 +88,15 @@ gantt
 - Notifications table and polling: task assigned, task due soon (nightly job), task reviewed.
 - **Exit:** a full event can be created and approved, staffed and tasked, and members can submit work that their Lead reviews.
 
-## Phase 4 — Documents (≈2 weeks)
+## Phase 4 — Documents (≈2 weeks) ✅ built
+
+> **Status (2026-11-01):** Phase 4 is implemented (migrations `0007` and `0008`, `app/documents`). It needs file storage settings in production; see [09-deployment.md](09-deployment.md). Differences from the plan below:
+> - **Uploads go through the backend** instead of presigned PUT URLs, so no bucket CORS setup is needed and the server checks the type, size and SHA-256 itself. Downloads and previews use short-lived presigned GET links.
+> - The starting folders are a constant in `app/documents/folders.py`, not a `folder_templates` table, and folders are one level deep. The `files` table is not built, so task evidence is still a note and/or a link.
+> - An event's owner and team can view and upload in its folders without extra grants. Forum folders (no event) need the permission globally. Nobody reviews their own upload, except the Chairperson.
+> - Deleted documents stay in storage indefinitely: the 90-day purge is not built because the free plan has no scheduler.
+>
+> **Also added:** team members complete their profile (University ID, branch, year, phone, and an optional IETE membership ID) after first sign-in, and the dashboard has a calendar of events and the person's open tasks.
 - Migrations: `folder_templates`, `folders`, `documents`, `document_versions`, `document_reviews`, `files`.
 - Storage adapter (S3 API with presigned PUT and GET), working against MinIO locally and R2 in production. MIME and size validation. The SHA-256 is computed by the client and verified on commit.
 - Event folders are auto-created from the templates when an event is created.

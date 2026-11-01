@@ -70,8 +70,7 @@ While `must_change_password` is true, every other endpoint returns `403 PASSWORD
 |---|---|---|
 | GET | `/folders?event=` · `/folders/{id}` | `documents.view` (folder) |
 | CRUD | `/folders` | `documents.manage_folders` |
-| POST | `/documents/upload-url` returns a presigned PUT URL | `documents.upload` (folder) |
-| POST | `/documents` (commit metadata after upload) | `documents.upload` |
+| POST | `/documents` (multipart: file and details) | `documents.upload` (folder) |
 | POST | `/documents/{id}/versions` | `documents.upload` |
 | POST | `/documents/{id}/review` | `documents.review` |
 | GET | `/documents/{id}/download` returns a presigned GET URL | `documents.view` |

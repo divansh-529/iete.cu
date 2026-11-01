@@ -11,6 +11,7 @@ from app.auth.schemas import (AcceptInviteIn, ChangePasswordIn, EffectivePermiss
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.request_context import request_ip
+from app.org.service import profile_complete
 from app.permissions.catalogue import CATALOGUE
 from app.permissions.engine import effective_grants
 from app.users.models import User
@@ -47,7 +48,7 @@ def build_me(db: Session, user: User) -> MeOut:
                 perms.append(EffectivePermission(code=g.permission, scope_type=g.scope_type,
                                                  scope_id=g.scope_id))
     return MeOut(user=UserOut.model_validate(user), permissions=perms,
-                 all_permissions=user.is_super_admin)
+                 all_permissions=user.is_super_admin, profile_complete=profile_complete(db, user))
 
 
 def _client(request: Request) -> tuple[str | None, str | None]:

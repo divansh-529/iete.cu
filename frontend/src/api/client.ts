@@ -21,7 +21,9 @@ function csrfToken(): string | undefined {
 export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   const method = init.method ?? "GET";
   const headers: Record<string, string> = {};
-  if (init.body !== undefined) headers["Content-Type"] = "application/json";
+  // For a file upload the browser sets the multipart Content-Type itself.
+  const isForm = init.body instanceof FormData;
+  if (init.body !== undefined && !isForm) headers["Content-Type"] = "application/json";
   const token = csrfToken();
   if (token && method !== "GET") headers["X-CSRF-Token"] = token;
 
@@ -29,7 +31,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
     method,
     headers,
     credentials: "same-origin",
-    body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+    body: isForm ? (init.body as FormData) : init.body !== undefined ? JSON.stringify(init.body) : undefined,
   });
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => null);

@@ -206,6 +206,7 @@ CREATE UNIQUE INDEX one_open_membership ON department_memberships (user_id, depa
 CREATE TABLE member_profiles (
   user_id          bigint PRIMARY KEY REFERENCES users(id),
   uid              text UNIQUE,                    -- university ID
+  iete_membership_id text,                         -- optional: only paid IETE members
   phone            text,
   branch           text,
   year_of_study    smallint,

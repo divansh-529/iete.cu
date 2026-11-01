@@ -24,6 +24,7 @@ from app.core.time import utcnow
 from app.events.models import (Event, EventChecklistItem, EventDepartment, EventMilestone,
                                EventStatusHistory, EventTeamMember)
 from app.events.schemas import ChecklistItemIn, EventIn, MilestoneIn, TeamMemberIn, TransitionIn
+from app.documents.folders import create_event_folders
 from app.notifications.service import notify
 from app.org.models import Department, Term
 from app.org.service import active_team_user, people_by_id
@@ -192,6 +193,7 @@ def create_event(db: Session, actor: User, body: EventIn) -> Event:
     db.flush()
     db.add_all(EventDepartment(event_id=ev.id, department_id=d) for d in dept_ids)
     db.add(EventStatusHistory(event_id=ev.id, from_status=None, to_status="draft", changed_by=actor.id))
+    create_event_folders(db, ev.id, actor.id)
     audit.record(db, actor.id, "event.create", "event", ev.id, after=_snapshot(ev, dept_ids))
     db.commit()
     return ev

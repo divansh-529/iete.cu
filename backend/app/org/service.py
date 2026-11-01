@@ -593,9 +593,17 @@ def user_org(db: Session, user_id: int) -> dict:
             "memberships": membership_views(db, list(memberships))}
 
 
+def profile_complete(db: Session, user: User) -> bool:
+    """Team members fill these in after their first sign-in. The IETE membership ID stays optional."""
+    if user.user_type != "team":
+        return True
+    p = db.get(MemberProfile, user.id)
+    return bool(p and p.uid and p.phone and p.branch and p.year_of_study)
+
+
 def _profile_snapshot(p: MemberProfile) -> dict:
     return {k: (v.isoformat() if isinstance(v, date) else v) for k, v in {
-        "uid": p.uid, "phone": p.phone, "branch": p.branch, "year_of_study": p.year_of_study,
+        "uid": p.uid, "iete_membership_id": p.iete_membership_id, "phone": p.phone, "branch": p.branch, "year_of_study": p.year_of_study,
         "joined_on": p.joined_on, "lifecycle_status": p.lifecycle_status,
         "responsibilities": p.responsibilities}.items()}
 
@@ -613,7 +621,9 @@ def update_profile(db: Session, actor: User, user_id: int, body: ProfileIn | Sel
     for key, value in body.model_dump(exclude_unset=True).items():
         if key == "lifecycle_status" and value is None:
             continue
-        setattr(profile, key, value.strip() if isinstance(value, str) else value)
+        if isinstance(value, str):
+            value = value.strip() or None
+        setattr(profile, key, value)
     try:
         db.flush()
     except IntegrityError:

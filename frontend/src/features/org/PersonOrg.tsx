@@ -70,6 +70,7 @@ export function ProfileCard({ userId, profile, editable, self = false }: {
       <dl className="space-y-2 text-sm">
         <Row label="Status"><Badge tone={LIFECYCLE_TONE[profile.lifecycle_status]}>{profile.lifecycle_status}</Badge></Row>
         <Row label="University ID">{profile.uid ?? "—"}</Row>
+        <Row label="IETE membership ID">{profile.iete_membership_id ?? "—"}</Row>
         <Row label="Branch">{profile.branch ?? "—"}</Row>
         <Row label="Year">{profile.year_of_study ?? "—"}</Row>
         <Row label="Phone">{profile.phone ?? "—"}</Row>
@@ -93,7 +94,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 function ProfileModal({ userId, profile, self, onClose }: { userId: number; profile: Profile; self: boolean; onClose: () => void }) {
   const qc = useQueryClient();
   const [form, setForm] = useState({
-    uid: profile.uid ?? "", phone: profile.phone ?? "", branch: profile.branch ?? "",
+    uid: profile.uid ?? "", iete_membership_id: profile.iete_membership_id ?? "", phone: profile.phone ?? "", branch: profile.branch ?? "",
     year_of_study: profile.year_of_study ? String(profile.year_of_study) : "", joined_on: profile.joined_on ?? "",
     lifecycle_status: profile.lifecycle_status, responsibilities: profile.responsibilities ?? "",
   });
@@ -103,7 +104,7 @@ function ProfileModal({ userId, profile, self, onClose }: { userId: number; prof
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const common = { phone: orNull(form.phone), branch: orNull(form.branch),
+    const common = { uid: orNull(form.uid), iete_membership_id: orNull(form.iete_membership_id), phone: orNull(form.phone), branch: orNull(form.branch),
                      year_of_study: form.year_of_study ? Number(form.year_of_study) : null };
     try {
       if (self) {
@@ -111,12 +112,13 @@ function ProfileModal({ userId, profile, self, onClose }: { userId: number; prof
       } else {
         await api(`/users/${userId}/profile`, {
           method: "PUT",
-          body: { ...common, uid: orNull(form.uid), joined_on: form.joined_on || null,
+          body: { ...common, joined_on: form.joined_on || null,
                   lifecycle_status: form.lifecycle_status, responsibilities: orNull(form.responsibilities) },
         });
       }
       qc.invalidateQueries({ queryKey: ["user-org"] });
       qc.invalidateQueries({ queryKey: ["my-org"] });
+      qc.invalidateQueries({ queryKey: ["me"] });
       onClose();
     } catch (err) {
       setError(errorMessage(err));
@@ -127,26 +129,29 @@ function ProfileModal({ userId, profile, self, onClose }: { userId: number; prof
     <Modal title="Edit profile" open onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         {error && <Alert>{error}</Alert>}
-        {!self && (
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="University ID"><Input value={form.uid} onChange={set("uid")} /></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="University ID"><Input required={self} value={form.uid} onChange={set("uid")} /></Field>
+          {!self && (
             <Field label="Status">
               <Select value={form.lifecycle_status} onChange={set("lifecycle_status")}>
                 {Object.keys(LIFECYCLE_TONE).map((s) => <option key={s} value={s}>{s}</option>)}
               </Select>
             </Field>
-          </div>
-        )}
+          )}
+        </div>
+        <Field label="IETE membership ID" hint="Optional. Only for paid IETE members.">
+          <Input value={form.iete_membership_id} onChange={set("iete_membership_id")} />
+        </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Branch"><Input value={form.branch} onChange={set("branch")} /></Field>
+          <Field label="Branch"><Input required={self} value={form.branch} onChange={set("branch")} /></Field>
           <Field label="Year of study">
-            <Select value={form.year_of_study} onChange={set("year_of_study")}>
+            <Select required={self} value={form.year_of_study} onChange={set("year_of_study")}>
               <option value="">—</option>
               {[1, 2, 3, 4, 5, 6].map((y) => <option key={y} value={y}>{y}</option>)}
             </Select>
           </Field>
         </div>
-        <Field label="Phone"><Input type="tel" value={form.phone} onChange={set("phone")} /></Field>
+        <Field label="Phone"><Input type="tel" required={self} value={form.phone} onChange={set("phone")} /></Field>
         {!self && (
           <>
             <Field label="Joined on"><Input type="date" value={form.joined_on} onChange={set("joined_on")} /></Field>

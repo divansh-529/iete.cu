@@ -6,10 +6,12 @@ import { ApiError } from "./api/client";
 import { AuthProvider } from "./auth/AuthContext";
 import { AccountPage } from "./features/auth/AccountPage";
 import { AcceptInvitePage } from "./features/auth/AcceptInvitePage";
+import { CompleteProfilePage } from "./features/auth/CompleteProfilePage";
 import { ForcedChangePasswordPage } from "./features/auth/ForcedChangePasswordPage";
 import { LoginPage } from "./features/auth/LoginPage";
 import { AuditPage } from "./features/audit/AuditPage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
+import { DocumentsPage } from "./features/documents/DocumentsPage";
 import { RecruitmentPage } from "./features/members/RecruitmentPage";
 import { PersonScoresPage } from "./features/scores/PersonScoresPage";
 import { ScoresPage } from "./features/scores/ScoresPage";
@@ -51,6 +53,7 @@ createRoot(document.getElementById("root")!).render(
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/change-password" element={<ForcedChangePasswordPage />} />
+            <Route path="/complete-profile" element={<CompleteProfilePage />} />
             <Route path="/accept-invite" element={<AcceptInvitePage />} />
             <Route path="/app" element={<AppLayout />}>
               <Route index element={<DashboardPage />} />
@@ -58,6 +61,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="events/:id" element={<EventDetailPage />} />
               <Route path="tasks" element={<TasksPage />} />
               <Route path="tasks/:id" element={<TaskDetailPage />} />
+              <Route path="documents" element={<DocumentsPage />} />
               <Route path="recruitment" element={<RecruitmentPage />} />
               <Route path="scores" element={<ScoresPage />} />
               <Route path="scores/people/:id" element={<PersonScoresPage />} />

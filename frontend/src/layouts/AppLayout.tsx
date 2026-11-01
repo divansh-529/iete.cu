@@ -21,6 +21,8 @@ const NAV: NavItem[] = [
   { to: "/app/events", label: "Events",
     icon: "M8 3v3m8-3v3M4 9h16M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1m4 7h2v2H9z" },
   { to: "/app/tasks", label: "Tasks", icon: "M9 11l3 3 8-8M20 12v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h11" },
+  { to: "/app/documents", label: "Documents", permission: "documents.view",
+    icon: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zm0 0v5h5M9 13h6m-6 4h6" },
   { to: "/app/scores", label: "Score cards",
     icon: "M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z" },
   { to: "/app/org", label: "Organisation", permission: "org.view",
@@ -55,7 +57,7 @@ export function AppLayout() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const ready = !!me && !me.user.must_change_password;
+  const ready = !!me && !me.user.must_change_password && me.profile_complete;
   const notifications = useNotifications(ready);
   const unread = notifications.data?.unread ?? 0;
   const approver = ready && can("users.approve");
@@ -66,6 +68,7 @@ export function AppLayout() {
   if (loading) return <Spinner />;
   if (!me) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (me.user.must_change_password) return <Navigate to="/change-password" replace />;
+  if (!me.profile_complete) return <Navigate to="/complete-profile" replace />;
 
   async function logout() {
     setLoggingOut(true);

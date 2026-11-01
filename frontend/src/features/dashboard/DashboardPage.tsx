@@ -5,6 +5,7 @@ import type { EventSummary, MemberProposal, TaskSummary, UserPage } from "../../
 import { useAuth } from "../../auth/AuthContext";
 import { TriangleMotif } from "../../components/Brand";
 import { Card } from "../../components/ui";
+import { DashboardCalendar } from "./DashboardCalendar";
 
 export function DashboardPage() {
   const { me, can } = useAuth();
@@ -57,6 +58,7 @@ export function DashboardPage() {
           <Stat label="Suspended" value={counts.data.suspended} accent="bg-amber-500" />
         </div>
       )}
+      <div className="mb-7"><DashboardCalendar /></div>
       <Card title="Your access">
         {me?.all_permissions ? (
           <p className="text-sm text-slate-600">You have every permission. Use <Link to="/app/users" className="text-brand-600 hover:underline">Team accounts</Link> to create accounts and grant access.</p>

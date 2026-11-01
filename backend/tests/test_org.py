@@ -252,7 +252,7 @@ def test_profiles(client, make_client, chair, db):
     r = member_client.put("/api/me/profile", json={"phone": "9876543210"})
     assert r.status_code == 200 and r.json()["phone"] == "9876543210"
     assert r.json()["uid"] == "23BCS10001"
-    # Members cannot change their own lifecycle status or UID through the self-service route
+    # Members cannot change their own lifecycle status through the self-service route
     r = member_client.put("/api/me/profile", json={"lifecycle_status": "active"})
     assert r.status_code == 200 and r.json()["lifecycle_status"] == "probation"
     assert member_client.put(f"/api/users/{member.id}/profile", json={"uid": "X"}).status_code == 403
@@ -267,3 +267,19 @@ def test_terms_single_current(client, chair):
     terms = {t["name"]: t["is_current"] for t in client.get("/api/terms").json()}
     assert terms == {"2025-26": False, "2026-27": True}
     assert a["is_current"] is True
+
+
+def test_profile_must_be_completed_after_first_sign_in(client, chair):
+    client.login("chair@ietecu.in")
+    assert client.get("/api/auth/me").json()["profile_complete"] is False
+    # Saving part of the form does not count, and blanks are stored as empty.
+    r = client.put("/api/me/profile", json={"uid": "22BCS1", "phone": "  ", "branch": "CSE", "year_of_study": 3})
+    assert r.status_code == 200 and r.json()["phone"] is None
+    assert client.get("/api/auth/me").json()["profile_complete"] is False
+    # The IETE membership ID is optional.
+    r = client.put("/api/me/profile", json={"phone": "9876543210"})
+    assert r.status_code == 200 and r.json()["iete_membership_id"] is None
+    assert client.get("/api/auth/me").json()["profile_complete"] is True
+    r = client.put("/api/me/profile", json={"iete_membership_id": "ST-1234"})
+    assert r.json()["iete_membership_id"] == "ST-1234"
+    assert client.get("/api/auth/me").json()["profile_complete"] is True

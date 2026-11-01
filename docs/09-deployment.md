@@ -129,3 +129,17 @@ Push to `main`. Cloudflare rebuilds the Worker, and Render rebuilds the backend 
 
 - **Backups:** the nightly encrypted `pg_dump` from [08 Â§Backups](08-free-tier-hosting.md#backups-blueprint-15) is not built yet. Until it is, Neon's built-in point-in-time restore (a short window on the free plan) is the only safety net.
 - **Free limits** (check current terms): Neon about 0.5 GB storage, Workers 100,000 requests a day, Render 750 hours a month. All are far above what the forum needs today.
+
+## File storage (Documents)
+
+Uploads need an S3-compatible bucket. Until these are set, the portal works normally and uploads show "File storage is not set up yet". Set them on Render, then redeploy:
+
+| Variable | Value |
+|---|---|
+| `IETE_S3_ENDPOINT_URL` | The provider's S3 endpoint |
+| `IETE_S3_BUCKET` | The bucket name |
+| `IETE_S3_ACCESS_KEY_ID` | Access key for that bucket |
+| `IETE_S3_SECRET_ACCESS_KEY` | Secret key for that bucket |
+| `IETE_S3_REGION` | `auto` for Cloudflare R2, otherwise the provider's region |
+
+The browser only follows short-lived download links, so the bucket stays private and needs no CORS rules.

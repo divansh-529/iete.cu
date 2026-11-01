@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     mail_from: str = "IETE Student Forum <noreply@isfcu.online>"
 
+    # File storage over the S3 API (any S3-compatible provider). Without these,
+    # uploads answer with a clear "not set up yet" message and everything else keeps working.
+    s3_endpoint_url: str = ""
+    s3_bucket: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+    s3_region: str = "auto"
+
     @field_validator("proxy_secret")
     @classmethod
     def _strip_secret(cls, value: str) -> str:

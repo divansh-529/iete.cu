@@ -33,3 +33,4 @@ class MeOut(BaseModel):
     user: UserOut
     permissions: list[EffectivePermission]   # UI hints only; the API re-checks everything
     all_permissions: bool                   # true for the Super Admin
+    profile_complete: bool                  # false sends a team member to the profile form

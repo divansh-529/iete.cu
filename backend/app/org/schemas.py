@@ -135,6 +135,7 @@ class MembershipOut(BaseModel):
 
 class ProfileIn(BaseModel):
     uid: str | None = Field(default=None, max_length=40)
+    iete_membership_id: str | None = Field(default=None, max_length=40)
     phone: str | None = Field(default=None, max_length=20)
     branch: str | None = Field(default=None, max_length=80)
     year_of_study: int | None = Field(default=None, ge=1, le=6)
@@ -144,6 +145,8 @@ class ProfileIn(BaseModel):
 
 
 class SelfProfileIn(BaseModel):
+    uid: str | None = Field(default=None, max_length=40)
+    iete_membership_id: str | None = Field(default=None, max_length=40)
     phone: str | None = Field(default=None, max_length=20)
     branch: str | None = Field(default=None, max_length=80)
     year_of_study: int | None = Field(default=None, ge=1, le=6)
@@ -153,6 +156,7 @@ class ProfileOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     uid: str | None = None
+    iete_membership_id: str | None = None
     phone: str | None = None
     branch: str | None = None
     year_of_study: int | None = None
