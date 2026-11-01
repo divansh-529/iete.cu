@@ -1,5 +1,5 @@
 """A small organisation with the real default roles and grants (app.cli.apply_default_grants):
-Chairperson (super admin), a Vice Chair holding Leadership, an Operations Lead, an Operations
+Chairperson (super admin), a Vice Chair and a Secretary holding Leadership, an Operations Lead, an Operations
 member, and a Technical member."""
 from dataclasses import dataclass
 
@@ -13,6 +13,7 @@ from tests.conftest import make_user
 class Org:
     chair: object
     vc: object
+    secretary: object
     ops_lead: object
     ops_member: object
     tech_member: object
@@ -30,13 +31,15 @@ def build_org(db, chair) -> Org:
     db.add_all([ops, tech])
     db.flush()
     vc_pos = Position(title="Vice Chairperson", is_lead=True)
+    sec_pos = Position(title="Secretary", is_lead=True)
     ops_lead_pos = Position(title="Operations Lead", department_id=ops.id, is_lead=True)
-    db.add_all([vc_pos, ops_lead_pos])
+    db.add_all([vc_pos, sec_pos, ops_lead_pos])
     db.flush()
     vc, lead = make_user(db, "vc@ietecu.in"), make_user(db, "opslead@ietecu.in")
+    secretary = make_user(db, "secretary@ietecu.in")
     member, tech_member = make_user(db, "opsmember@ietecu.in"), make_user(db, "techmember@ietecu.in")
     from datetime import date
-    for user, pos in ((vc, vc_pos), (lead, ops_lead_pos)):
+    for user, pos in ((vc, vc_pos), (secretary, sec_pos), (lead, ops_lead_pos)):
         db.add(PositionAssignment(user_id=user.id, position_id=pos.id, valid_from=date.today(),
                                   start_reason="appointed", assigned_by=chair.id))
     for user, dept in ((lead, ops), (member, ops), (tech_member, tech)):
@@ -44,7 +47,7 @@ def build_org(db, chair) -> Org:
                                     assigned_by=chair.id))
     apply_default_grants(db, chair)
     db.commit()
-    return Org(chair, vc, lead, member, tech_member, ops, tech)
+    return Org(chair, vc, secretary, lead, member, tech_member, ops, tech)
 
 
 def login(make_client, user):

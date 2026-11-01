@@ -1,4 +1,5 @@
 from datetime import timedelta
+from html import escape
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -8,6 +9,7 @@ from app.audit import service as audit
 from app.auth.service import revoke_sessions
 from app.core.config import settings
 from app.core.errors import AppError, forbidden, not_found
+from app.core.mail import send_mail
 from app.core.security import hash_password, new_token, token_hash, validate_new_password
 from app.core.time import utcnow
 from app.users.models import InviteToken, User
@@ -31,6 +33,9 @@ def _guard_target(actor: User, target: User, allow_self: bool = False) -> None:
         raise forbidden("Only the Chairperson can change the Chairperson's account.")
     if not allow_self and target.id == actor.id:
         raise forbidden("You cannot perform this action on your own account.")
+    if target.status in ("proposed", "rejected"):
+        raise AppError(409, "INVALID_STATE", "This person was proposed by a lead. Approve or reject them on "
+                                             "the Approvals page instead.")
 
 
 def list_users(db: Session, q: str | None, status: str | None, user_type: str | None,
@@ -55,17 +60,45 @@ def _issue_invite(db: Session, actor: User, user: User) -> str:
     return f"{settings.frontend_base_url}/accept-invite?token={token}"
 
 
-def create_user(db: Session, actor: User, body: UserCreateIn) -> tuple[User, str | None]:
+def welcome_email(user: User, department: str | None = None) -> bool:
+    """Email a new member their sign-in details (the forum's default first password)."""
+    login = f"{settings.frontend_base_url}/login"
+    where = f" as a member of the {department} department" if department else ""
+    text = (f"Hi {user.full_name},\n\n"
+            f"Your account on the IETE Student Forum (Chandigarh University) portal is ready{where}.\n\n"
+            f"Sign in at: {login}\n"
+            f"Email: {user.email}\n"
+            f"First-time password: {settings.default_member_password}\n\n"
+            "You will be asked to choose your own password as soon as you sign in. Please do it straight "
+            "away and don't share it with anyone.\n\n"
+            "— IETE Student Forum, Chandigarh University")
+    html = (f"<p>Hi {escape(user.full_name)},</p>"
+            f"<p>Your account on the <strong>IETE Student Forum</strong> (Chandigarh University) portal is "
+            f"ready{escape(where)}.</p>"
+            f"<p><a href=\"{escape(login)}\">Sign in to the portal</a><br>Email: {escape(user.email)}<br>"
+            f"First-time password: <code>{escape(settings.default_member_password)}</code></p>"
+            "<p>You will be asked to choose your own password as soon as you sign in. Please do it "
+            "straight away and don't share it with anyone.</p><p>— IETE Student Forum, Chandigarh University</p>")
+    return send_mail(user.email, "Your IETE Student Forum portal account is ready", text, html)
+
+
+def create_user(db: Session, actor: User, body: UserCreateIn) -> tuple[User, str | None, bool]:
     user, invite_url = add_user(db, actor, body)
     db.commit()
-    return user, invite_url
+    emailed = body.credential == "default_password" and welcome_email(user)
+    if emailed:
+        audit.record(db, actor.id, "user.welcome_email", "user", user.id)
+        db.commit()
+    return user, invite_url, emailed
 
 
 def add_user(db: Session, actor: User, body: UserCreateIn) -> tuple[User, str | None]:
     """Create the account without committing, so callers can add more in the same transaction."""
     user = User(email=body.email, full_name=body.full_name.strip(), user_type="team",
                 status="invited", must_change_password=True, created_by=actor.id)
-    if body.credential == "temp_password":
+    if body.credential == "default_password":
+        user.password_hash = hash_password(settings.default_member_password)
+    elif body.credential == "temp_password":
         if not body.temp_password:
             raise AppError(422, "VALIDATION_ERROR", "A temporary password is required.")
         validate_new_password(body.temp_password, body.email)

@@ -7,7 +7,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
 
-USER_STATUSES = ("invited", "active", "suspended", "deactivated")
+# proposed: recruited by a lead, waiting for approval (cannot sign in). rejected: the proposal was
+# turned down; the row stays so the decision remains on record.
+USER_STATUSES = ("proposed", "rejected", "invited", "active", "suspended", "deactivated")
 USER_TYPES = ("team", "participant")
 
 

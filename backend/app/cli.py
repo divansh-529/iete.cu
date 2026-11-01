@@ -85,8 +85,13 @@ def seed_roles() -> None:
         db.commit()
 
 
-# Blueprint §4.1–4.2. Leads report to the Secretary by default (docs/07-open-decisions.md).
+# Blueprint §4.1–4.2, as confirmed by the Chairperson: the Vice Chairperson and Secretary are
+# equals who both report to the Chairperson; the Joint Secretary and the department Leads report
+# to the Secretary.
 LEADERSHIP = ["Chairperson", "Vice Chairperson", "Secretary", "Joint Secretary"]
+LEADERSHIP_REPORTS_TO = {"Vice Chairperson": "Chairperson", "Secretary": "Chairperson",
+                         "Joint Secretary": "Secretary"}
+LEADERSHIP_RANK = {"Chairperson": 10, "Vice Chairperson": 20, "Secretary": 20, "Joint Secretary": 30}
 DEPARTMENTS = [
     ("Treasury", "Treasurer and authorised finance team", "Treasurer"),
     ("Membership", "Membership records and drives", "Membership Lead"),
@@ -109,15 +114,14 @@ def seed_org() -> None:
         if db.scalar(select(Position).limit(1)):
             sys.exit("Positions already exist; seed-org only runs on an empty organisation.")
         chair = db.scalar(select(User).where(User.is_super_admin))
-        previous = None
         positions = {}
-        for rank, title in enumerate(LEADERSHIP, start=1):
-            pos = Position(title=title, rank_order=rank * 10, is_lead=True,
-                           reports_to_position_id=previous)
+        for title in LEADERSHIP:
+            boss = LEADERSHIP_REPORTS_TO.get(title)
+            pos = Position(title=title, rank_order=LEADERSHIP_RANK[title], is_lead=True,
+                           reports_to_position_id=positions[boss].id if boss else None)
             db.add(pos)
             db.flush()
             positions[title] = pos
-            previous = pos.id
         for name, description, lead_title in DEPARTMENTS:
             dept = Department(name=name, description=description)
             db.add(dept)
@@ -141,52 +145,60 @@ def seed_org() -> None:
               f"{granted} default grant(s).")
 
 
-# docs/02-permissions.md §8: which positions and departments get which default role.
+# docs/02-permissions.md §8: which positions and departments get which default access.
 LEADERSHIP_ROLE_POSITIONS = ("Vice Chairperson", "Secretary", "Joint Secretary")
+# The Vice Chairperson and Secretary recruit for any department and approve new accounts.
+RECRUITER_POSITIONS = ("Vice Chairperson", "Secretary")
+RECRUITER_PERMISSIONS = ("org.assign", "users.approve")
 
 
-def _grant_role_once(db, chair: User, role: Role, subject_type: str, subject_id: int,
-                     scope_type: str, scope_id: int | None) -> bool:
-    """Grant a role unless an identical active grant exists. Returns True if one was added."""
+def _grant_once(db, chair: User, subject_type: str, subject_id: int, scope_type: str, scope_id: int | None,
+                role: Role | None = None, permission: str | None = None) -> bool:
+    """Grant a role or a single permission unless an identical active grant exists.
+    Returns True if one was added."""
     from app.permissions.engine import active_grant_filter
     from app.permissions.models import Grant
 
+    role_id = role.id if role else None
     exists = db.scalar(select(Grant.id).where(
-        Grant.subject_type == subject_type, Grant.subject_id == subject_id, Grant.role_id == role.id,
+        Grant.subject_type == subject_type, Grant.subject_id == subject_id,
+        Grant.role_id.is_not_distinct_from(role_id), Grant.permission_code.is_not_distinct_from(permission),
         Grant.scope_type == scope_type, Grant.scope_id.is_not_distinct_from(scope_id),
         *active_grant_filter()))
     if exists:
         return False
-    g = Grant(subject_type=subject_type, subject_id=subject_id, role_id=role.id, scope_type=scope_type,
-              scope_id=scope_id, granted_by=chair.id, reason=f"Default {role.name} access")
+    g = Grant(subject_type=subject_type, subject_id=subject_id, role_id=role_id, permission_code=permission,
+              scope_type=scope_type, scope_id=scope_id, granted_by=chair.id,
+              reason=f"Default {role.name if role else permission} access")
     db.add(g)
     db.flush()
     db.add(PermissionAudit(actor_id=None, action="grant", subject_type=subject_type, subject_id=subject_id,
-                           role_id=role.id, scope_type=scope_type, scope_id=scope_id, reason=g.reason,
-                           new_value={"grant_id": g.id, "role_id": role.id}))
+                           role_id=role_id, permission_code=permission, scope_type=scope_type, scope_id=scope_id,
+                           reason=g.reason, new_value={"grant_id": g.id, "role_id": role_id, "permission": permission}))
     return True
 
 
 def apply_default_grants(db, chair: User) -> int:
-    """Leadership positions get Leadership (everywhere); each department's Lead position gets
-    Department Lead and each department gets Member, both on that department only."""
+    """Leadership positions get Leadership (everywhere), and the Vice Chairperson and Secretary
+    also recruit and approve accounts everywhere. Each department's Lead position gets Department
+    Lead and each department gets Member, both on that department only."""
     from app.org.models import Department, Position
 
     roles = {r.name: r for r in db.scalars(select(Role).where(Role.name.in_(DEFAULT_ROLES)))}
     added = 0
     positions = db.scalars(select(Position).where(Position.status == "active")).all()
-    if "Leadership" in roles:
-        for p in positions:
-            if p.department_id is None and p.title in LEADERSHIP_ROLE_POSITIONS:
-                added += _grant_role_once(db, chair, roles["Leadership"], "position", p.id, "global", None)
-    if "Department Lead" in roles:
-        for p in positions:
-            if p.department_id is not None and p.is_lead:
-                added += _grant_role_once(db, chair, roles["Department Lead"], "position", p.id,
-                                          "department", p.department_id)
+    for p in positions:
+        if p.department_id is None and p.title in LEADERSHIP_ROLE_POSITIONS and "Leadership" in roles:
+            added += _grant_once(db, chair, "position", p.id, "global", None, role=roles["Leadership"])
+        if p.department_id is None and p.title in RECRUITER_POSITIONS:
+            for code in RECRUITER_PERMISSIONS:
+                added += _grant_once(db, chair, "position", p.id, "global", None, permission=code)
+        if p.department_id is not None and p.is_lead and "Department Lead" in roles:
+            added += _grant_once(db, chair, "position", p.id, "department", p.department_id,
+                                 role=roles["Department Lead"])
     if "Member" in roles:
         for d in db.scalars(select(Department).where(Department.status == "active")):
-            added += _grant_role_once(db, chair, roles["Member"], "department", d.id, "department", d.id)
+            added += _grant_once(db, chair, "department", d.id, "department", d.id, role=roles["Member"])
     return added
 
 

@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     invite_ttl_hours: int = 72
     min_password_length: int = 10
     frontend_base_url: str = "http://localhost:5173"
+    # Every new account starts with this password and must change it at first sign-in
+    # (Chairperson's requirement). Override with IETE_DEFAULT_MEMBER_PASSWORD.
+    default_member_password: str = "CU@12345678"
+
+    # Email (Resend, https://resend.com: an HTTPS API, since free hosts block SMTP). Without a
+    # key, emails are skipped and the portal shows the sign-in details to share by hand.
+    resend_api_key: str = ""
+    mail_from: str = "IETE Student Forum <noreply@isfcu.online>"
 
     @field_validator("proxy_secret")
     @classmethod

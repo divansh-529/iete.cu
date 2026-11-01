@@ -1,6 +1,6 @@
 // Mirrors the Pydantic schemas in backend/app/*/schemas.py.
 
-export type UserStatus = "invited" | "active" | "suspended" | "deactivated";
+export type UserStatus = "proposed" | "rejected" | "invited" | "active" | "suspended" | "deactivated";
 
 export interface User {
   id: number;
@@ -270,6 +270,32 @@ export interface TaskDetail extends TaskSummary {
   comments: { id: number; author: PersonRef; body: string; created_at: string }[];
   history: StatusChange[];
   actions: TaskAction[];
+}
+
+// ---------------------------------------------------------------- recruitment
+
+export interface MemberProposal {
+  id: number;
+  person: PersonRef;
+  account_status: UserStatus;
+  department: Ref;
+  position: Ref | null;
+  note: string | null;
+  status: "pending" | "approved" | "rejected";
+  proposed_by: PersonRef;
+  created_at: string;
+  decided_by: PersonRef | null;
+  decided_at: string | null;
+  decision_remarks: string | null;
+  email_sent_at: string | null;
+  can_decide: boolean;
+}
+
+export interface ProposalDecision {
+  proposal: MemberProposal;
+  email_sent: boolean | null;
+  login_url: string;
+  default_password: string;
 }
 
 // ---------------------------------------------------------------- notifications

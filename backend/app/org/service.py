@@ -16,9 +16,8 @@ from app.permissions import engine
 from app.permissions.engine import department_scope, ensure
 from app.org.models import (Department, DepartmentMembership, MemberProfile, Position,
                             PositionAssignment, Term)
-from app.org.schemas import (AssignIn, DepartmentIn, EndAssignmentIn, MemberIn, NewMemberIn, PositionIn,
-                             ProfileIn, SelfProfileIn, TermIn, TransferIn)
-from app.users import service as users_service
+from app.org.schemas import (AssignIn, DepartmentIn, EndAssignmentIn, MemberIn, PositionIn, ProfileIn,
+                             SelfProfileIn, TermIn, TransferIn)
 from app.users.models import User
 
 
@@ -439,35 +438,17 @@ def add_member(db: Session, actor: User, dept_id: int, body: MemberIn) -> Depart
     return m
 
 
-def create_member(db: Session, actor: User, dept_id: int,
-                  body: NewMemberIn) -> tuple[User, str | None, DepartmentMembership]:
-    """A department lead (org.assign on the department) recruits someone who has no account yet.
+def ensure_can_staff(db: Session, actor: User, pos: Position) -> None:
+    _ensure_can_staff(db, actor, pos)
 
-    The account gets no direct access: only what the department, and the chosen position in it,
-    already carry. Creating the account, the membership and the assignment is all-or-nothing.
-    """
-    dept = get_department(db, dept_id)
-    ensure(db, actor, "org.assign", department_scope(db, dept.id))
-    if dept.status != "active":
-        raise AppError(409, "INVALID_STATE", "This department is archived.")
-    pos = None
-    if body.position_id is not None:
-        pos = get_position(db, body.position_id)
-        if pos.department_id != dept.id:
-            raise AppError(422, "VALIDATION_ERROR", f"Choose a position in {dept.name}.")
-        _ensure_can_staff(db, actor, pos)
-    user, invite_url = users_service.add_user(db, actor, body)
-    start = _today()
-    m = DepartmentMembership(user_id=user.id, department_id=dept.id, valid_from=start, assigned_by=actor.id)
-    db.add(m)
-    db.flush()
-    audit.record(db, actor.id, "department.member_add", "department", dept.id,
-                 after={"user_id": user.id, "membership_id": m.id, "new_account": True})
+
+def place_member(db: Session, actor: User, user: User, dept: Department, pos: Position | None) -> None:
+    """Put an approved recruit into their department (and position, if one was chosen). The
+    proposer's right to do so was checked when they proposed. The caller commits."""
+    _ensure_membership(db, actor, user.id, dept.id, _today())
     if pos is not None:
-        _open_assignment(db, actor, user, pos, start, "appointed", None)
+        _open_assignment(db, actor, user, pos, _today(), "appointed", None)
     engine.clear_cache(db)
-    db.commit()
-    return user, invite_url, m
 
 
 def end_membership(db: Session, actor: User, membership_id: int, reason: str) -> DepartmentMembership:

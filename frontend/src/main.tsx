@@ -10,6 +10,7 @@ import { ForcedChangePasswordPage } from "./features/auth/ForcedChangePasswordPa
 import { LoginPage } from "./features/auth/LoginPage";
 import { AuditPage } from "./features/audit/AuditPage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
+import { RecruitmentPage } from "./features/members/RecruitmentPage";
 import { EventDetailPage } from "./features/events/EventDetailPage";
 import { EventsPage } from "./features/events/EventsPage";
 import { DepartmentDetailPage } from "./features/org/DepartmentDetailPage";
@@ -55,6 +56,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="events/:id" element={<EventDetailPage />} />
               <Route path="tasks" element={<TasksPage />} />
               <Route path="tasks/:id" element={<TaskDetailPage />} />
+              <Route path="recruitment" element={<RecruitmentPage />} />
               <Route path="users" element={<UsersPage />} />
               <Route path="users/:id" element={<UserDetailPage />} />
               <Route path="org" element={<OrgPage />} />

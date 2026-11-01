@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { api } from "../../api/client";
-import type { EventSummary, TaskSummary, UserPage } from "../../api/types";
+import type { EventSummary, MemberProposal, TaskSummary, UserPage } from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
 import { TriangleMotif } from "../../components/Brand";
 import { Card } from "../../components/ui";
@@ -21,6 +21,8 @@ export function DashboardPage() {
   const myTasks = useQuery({ queryKey: ["tasks", "mine", false], queryFn: () => api<TaskSummary[]>("/tasks?view=mine&status=open") });
   const toReview = useQuery({ queryKey: ["tasks", "review", false], queryFn: () => api<TaskSummary[]>("/tasks?view=review") });
   const eventsToAct = useQuery({ queryKey: ["events", "action", "", ""], queryFn: () => api<EventSummary[]>("/events?view=action") });
+  const proposals = useQuery({ queryKey: ["proposals", "pending"], enabled: can("users.approve"),
+                               queryFn: () => api<MemberProposal[]>("/member-proposals?status=pending") });
   const overdue = myTasks.data?.filter((t) => t.overdue).length ?? 0;
 
   const permissionCount = me?.all_permissions ? null : new Set(me?.permissions.map((p) => p.code)).size;
@@ -39,11 +41,14 @@ export function DashboardPage() {
           </p>
         </div>
       </section>
-      <div className="mb-7 grid gap-4 sm:grid-cols-3">
+      <div className={`mb-7 grid gap-4 sm:grid-cols-3 ${can("users.approve") ? "xl:grid-cols-4" : ""}`}>
         <WorkTile to="/app/tasks?tab=mine" label="My open tasks" value={myTasks.data?.length}
                   note={overdue ? `${overdue} overdue` : undefined} />
         <WorkTile to="/app/tasks?tab=review" label="Waiting for my review" value={toReview.data?.length} />
         <WorkTile to="/app/events?tab=action" label="Events needing my action" value={eventsToAct.data?.length} />
+        {can("users.approve") && (
+          <WorkTile to="/app/recruitment" label="New members to approve" value={proposals.data?.filter((p) => p.can_decide).length} />
+        )}
       </div>
       {counts.data && (
         <div className="mb-7 grid gap-4 sm:grid-cols-3">

@@ -8,11 +8,10 @@ from app.org import service
 from app.org.models import Term
 from app.org.schemas import (AssignIn, AssignmentOut, ChartNode, DepartmentDetailOut, DepartmentIn,
                              DepartmentOut, EndAssignmentIn, EndMembershipIn, MemberIn, MembershipOut,
-                             NewMemberIn, NewMemberOut, PersonRef, PositionIn, PositionOut, ProfileIn, ProfileOut,
-                             ReasonIn, SelfProfileIn, TermIn, TermOut, TransferIn, UserOrgOut)
+                             PersonRef, PositionIn, PositionOut, ProfileIn, ProfileOut, ReasonIn, SelfProfileIn,
+                             TermIn, TermOut, TransferIn, UserOrgOut)
 from app.permissions.engine import department_scope, ensure, visible_department_ids
 from app.users.models import User
-from app.users.schemas import UserOut
 
 router = APIRouter(prefix="/api", tags=["organisation"])
 
@@ -85,14 +84,6 @@ def restore_department(dept_id: int, body: ReasonIn, actor: User = Depends(requi
 def add_member(dept_id: int, body: MemberIn, actor: User = Depends(require_any("org.assign")),
                db: Session = Depends(get_db)):
     return service.membership_views(db, [service.add_member(db, actor, dept_id, body)])[0]
-
-
-@router.post("/departments/{dept_id}/new-member", response_model=NewMemberOut, status_code=201)
-def create_member(dept_id: int, body: NewMemberIn, actor: User = Depends(require_any("org.assign")),
-                  db: Session = Depends(get_db)):
-    user, invite_url, membership = service.create_member(db, actor, dept_id, body)
-    return {"user": UserOut.model_validate(user), "invite_url": invite_url,
-            "membership": service.membership_views(db, [membership])[0]}
 
 
 @router.post("/department-memberships/{membership_id}/end", response_model=MembershipOut)

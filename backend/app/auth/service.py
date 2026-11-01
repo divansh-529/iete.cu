@@ -61,8 +61,10 @@ def login(db: Session, email: str, password: str, ip: str | None,
     if user.status not in ("active", "invited"):
         db.add(LoginAttempt(email=email, ip=ip, success=False))
         db.commit()
-        raise AppError(403, "ACCOUNT_DISABLED",
-                       f"This account is {user.status}. Contact an administrator.")
+        message = {"proposed": "This account is waiting for approval. You'll get an email when it's ready.",
+                   "rejected": "This account was not approved. Contact your department lead."
+                   }.get(user.status, f"This account is {user.status}. Contact an administrator.")
+        raise AppError(403, "ACCOUNT_DISABLED", message)
 
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(password)

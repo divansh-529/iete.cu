@@ -1,7 +1,8 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { api } from "../api/client";
+import type { MemberProposal } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { BrandLogo } from "../components/Brand";
 import { cx, Spinner } from "../components/ui";
@@ -11,7 +12,7 @@ interface NavItem {
   to: string;
   label: string;
   icon: string;  // SVG path, 24×24 outline
-  permission?: string;
+  permission?: string | string[];   // any of these
 }
 
 const NAV: NavItem[] = [
@@ -22,6 +23,8 @@ const NAV: NavItem[] = [
   { to: "/app/tasks", label: "Tasks", icon: "M9 11l3 3 8-8M20 12v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h11" },
   { to: "/app/org", label: "Organisation", permission: "org.view",
     icon: "M12 3v5m0 0H6v4m6-4h6v4M4 12h4v4H4zm12 0h4v4h-4zM10 16h4v5h-4zm2-4v4" },
+  { to: "/app/recruitment", label: "Recruitment", permission: ["users.approve", "org.assign"],
+    icon: "M15 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1m6-9a3 3 0 1 0 0-6 3 3 0 0 0 0 6m10-1v6m3-3h-6" },
   { to: "/app/users", label: "Team accounts", permission: "users.view",
     icon: "M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6m13 9v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8" },
   { to: "/app/roles", label: "Roles", permission: "permissions.view",
@@ -50,8 +53,13 @@ export function AppLayout() {
   const qc = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
-  const notifications = useNotifications(!!me && !me.user.must_change_password);
+  const ready = !!me && !me.user.must_change_password;
+  const notifications = useNotifications(ready);
   const unread = notifications.data?.unread ?? 0;
+  const approver = ready && can("users.approve");
+  const waiting = useQuery({ queryKey: ["proposals", "pending"], enabled: approver, refetchInterval: 120_000,
+                             queryFn: () => api<MemberProposal[]>("/member-proposals?status=pending") });
+  const toDecide = waiting.data?.filter((p) => p.can_decide).length ?? 0;
 
   if (loading) return <Spinner />;
   if (!me) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
@@ -63,7 +71,7 @@ export function AppLayout() {
     navigate("/login", { replace: true });
   }
 
-  const items = NAV.filter((i) => !i.permission || can(i.permission));
+  const items = NAV.filter((i) => !i.permission || [i.permission].flat().some((p) => can(p)));
 
   return (
     <div className="min-h-screen bg-slate-50 md:flex">
@@ -94,6 +102,9 @@ export function AppLayout() {
                 <>
                   <Icon d={item.icon} className={isActive ? "text-brand-600" : "text-slate-400 group-hover:text-slate-600"} />
                   {item.label}
+                  {item.to === "/app/recruitment" && toDecide > 0 && (
+                    <span className="ml-auto rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white">{toDecide}</span>
+                  )}
                 </>
               )}
             </NavLink>

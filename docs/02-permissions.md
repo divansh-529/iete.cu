@@ -22,7 +22,7 @@ Positions belong to the org structure ([03-data-model.md](03-data-model.md) §2)
 
 | Module | Permission codes |
 |---|---|
-| Users | `users.view`, `users.create` S, `users.edit` S, `users.suspend` S, `users.reset_password` S |
+| Users | `users.view`, `users.create` S, `users.edit` S, `users.suspend` S, `users.reset_password` S, `users.approve` |
 | Permissions | `permissions.view` S, `permissions.manage` S, `roles.manage` S |
 | Org | `org.view`, `org.manage` (departments, positions), `org.assign` (move or assign members) |
 | Tasks | `tasks.view`, `tasks.create`, `tasks.assign`, `tasks.review`, `tasks.export` |
@@ -37,7 +37,13 @@ Positions belong to the org structure ([03-data-model.md](03-data-model.md) §2)
 | Audit | `audit.view` S |
 | Settings | `settings.manage` S |
 
-**Recruiting into a department.** `users.create` stays sensitive, but a holder of `org.assign` on a department can open an account for a new recruit through `POST /departments/{id}/new-member`. The account joins that department (and optionally one of its positions) in the same transaction and receives no direct grants, so the recruit gets only the access already attached to that department and position. This is how department leads add new people to their team without being able to create accounts elsewhere.
+**Recruiting with approval** (Chairperson's requirement, 2026-11-01). `users.create` stays sensitive and lets the Chairperson add accounts directly. Everyone else recruits through proposals:
+
+1. A holder of `org.assign` on a department (its Lead; the Vice Chairperson and Secretary everywhere) proposes a candidate with `POST /departments/{id}/member-proposals`. The account is created as `proposed` and cannot sign in.
+2. A holder of `users.approve` (the Chairperson; the Vice Chairperson and Secretary by default, through their positions) approves or rejects it. Nobody decides on a member they proposed themselves, except the super admin. Rejection needs a reason, and a rejected candidate can be proposed again later.
+3. On approval the account gets the forum's default first password (`IETE_DEFAULT_MEMBER_PASSWORD`, `CU@12345678` by default), joins the department and the chosen position, and the candidate is emailed their sign-in details. They must change the password at first sign-in, and cannot choose the default one.
+
+`users.approve` is deliberately not sensitive, so that it can sit on the Vice Chairperson and Secretary positions and pass to whoever holds them. Every proposal and decision is kept (`member_proposals`) and audited.
 
 **Leads staff members, not leads.** Filling, ending or transferring into or out of a lead or deputy position needs `org.manage` at that scope as well as `org.assign`. A department lead (who has `org.assign` only) can therefore recruit and place ordinary members, but cannot appoint, promote someone into, or remove a lead or deputy.
 
@@ -123,6 +129,7 @@ A nightly job marks expired grants with an `expire` audit row, so the history sh
 |---|---|---|
 | Super Admin flag | Chairperson user | — |
 | Role "Leadership" (`org.view`, `events.*` except approve, including `events.review`, `tasks.*`, `documents.view/upload/review`, `points.evaluate`, `reports.view`) | Positions: Vice Chair, Secretary, Joint Secretary | global |
+| `org.assign`, `users.approve` (recruit anywhere, approve new accounts) | Positions: Vice Chair, Secretary (equal powers) | global |
 | Role "Department Lead" (`org.view`, `org.assign`, `tasks.*`, `events.view/create/edit`, `documents.view/upload`) | Each Lead position | that position's department |
 | Role "Member" (`tasks.view`, `events.view`, `events.create`, `documents.view`) | Each department | that department |
 

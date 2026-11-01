@@ -6,7 +6,7 @@ import type { DepartmentDetail, Membership } from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
 import { Alert, Badge, Button, Card, Empty, formatDate, PageHeader, Spinner } from "../../components/ui";
 import { GrantsCard } from "../permissions/GrantsCard";
-import { CreateUserModal } from "../users/UsersPage";
+import { ProposeMemberModal } from "../members/ProposeMemberModal";
 import { AddMemberModal, DepartmentFormModal, PositionFormModal, ReasonModal, useOrgRefresh } from "./modals";
 import { PositionList } from "./PositionList";
 
@@ -50,7 +50,7 @@ export function DepartmentDetailPage() {
               actions={canAssign && (
                 <div className="flex flex-wrap gap-2">
                   <Button variant="secondary" onClick={() => setModal("member")}>+ Add existing</Button>
-                  <Button onClick={() => setModal("new-member")}>+ New account</Button>
+                  <Button onClick={() => setModal("new-member")}>+ Propose new member</Button>
                 </div>
               )}>
           {!d.members.length ? <Empty>No members yet.</Empty> : (
@@ -76,8 +76,8 @@ export function DepartmentDetailPage() {
       </div>
       {modal === "edit" && <DepartmentFormModal dept={d} onClose={() => setModal(null)} />}
       {modal === "position" && <PositionFormModal departmentId={d.id} onClose={() => setModal(null)} />}
-      <CreateUserModal open={modal === "new-member"} department={d} canManage={scoped("org.manage")}
-                       onClose={() => setModal(null)} />
+      {modal === "new-member" && <ProposeMemberModal department={d} canManage={scoped("org.manage")}
+                                                     onClose={() => setModal(null)} />}
       {modal === "member" && <AddMemberModal dept={d} existing={d.members.map((m) => m.user.id)} onClose={() => setModal(null)} />}
       {(modal === "archive" || modal === "restore") && (
         <ReasonModal title={`${modal === "archive" ? "Archive" : "Restore"} ${d.name}`}

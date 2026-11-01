@@ -2,10 +2,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { api, errorMessage } from "../../api/client";
-import type { DepartmentDetail, User, UserPage } from "../../api/types";
+import type { User, UserPage } from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
 import { Alert, Button, Card, Empty, Field, formatDate, Input, Modal, PageHeader, Select, Spinner,
   StatusBadge } from "../../components/ui";
+import { SignInDetails } from "../members/SignInDetails";
 import { CopyBox } from "./CopyBox";
 
 export function UsersPage() {
@@ -24,7 +25,7 @@ export function UsersPage() {
 
   return (
     <>
-      <PageHeader title="Team accounts" subtitle="Accounts are created and managed only by authorised administrators."
+      <PageHeader title="Team accounts" subtitle="Every member has their own account. Leads propose recruits; the Chairperson, Vice Chair or Secretary approve them."
                   actions={can("users.create") && <Button onClick={() => setCreating(true)}>+ New account</Button>} />
       <Card>
         <div className="mb-4 flex flex-wrap gap-2">
@@ -34,6 +35,8 @@ export function UsersPage() {
             <option value="">All statuses</option>
             <option value="active">Active</option>
             <option value="invited">Invited</option>
+            <option value="proposed">Waiting for approval</option>
+            <option value="rejected">Not approved</option>
             <option value="suspended">Suspended</option>
             <option value="deactivated">Deactivated</option>
           </Select>
@@ -75,26 +78,22 @@ export function UsersPage() {
   );
 }
 
-/** Creates a team account. With `department`, the account joins that department (and optionally
- *  one of its open positions) in the same step, which is how department leads recruit. */
-export function CreateUserModal({ open, onClose, department, canManage = false }:
-  { open: boolean; onClose: () => void; department?: DepartmentDetail; canManage?: boolean }) {
+/** The Chairperson (users.create) adds an account directly. It starts on the forum's default
+ *  first password and the person is emailed their sign-in details. Recruits proposed by leads go
+ *  through the Approvals page instead (features/members). */
+function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
-  const { can } = useAuth();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
-  const [positionId, setPositionId] = useState("");
-  const [credential, setCredential] = useState<"temp_password" | "invite">("temp_password");
+  const [credential, setCredential] = useState<"default_password" | "invite" | "temp_password">("default_password");
   const [tempPassword, setTempPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [created, setCreated] = useState<{ user: User; invite_url: string | null } | null>(null);
-  // Department leads recruit ordinary members only; lead and deputy seats are for administrators.
-  const openPositions = department?.positions.filter((p) =>
-    p.holders.length < p.max_holders && (canManage || !(p.is_lead || p.is_deputy))) ?? [];
+  const [created, setCreated] = useState<{ user: User; invite_url: string | null; email_sent: boolean;
+    default_password: string | null; login_url: string | null } | null>(null);
 
   function close() {
-    setEmail(""); setName(""); setPositionId(""); setTempPassword(""); setError(null); setCreated(null);
+    setEmail(""); setName(""); setTempPassword(""); setError(null); setCreated(null);
     onClose();
   }
 
@@ -103,16 +102,9 @@ export function CreateUserModal({ open, onClose, department, canManage = false }
     setBusy(true);
     setError(null);
     try {
-      const body = { email, full_name: name, credential,
-                     temp_password: credential === "temp_password" ? tempPassword : null };
-      const result = department
-        ? await api<{ user: User; invite_url: string | null }>(`/departments/${department.id}/new-member`, {
-            method: "POST", body: { ...body, position_id: positionId ? Number(positionId) : null } })
-        : await api<{ user: User; invite_url: string | null }>("/users", { method: "POST", body });
-      setCreated(result);
-      for (const key of ["users", "department", "departments", "positions", "chart"]) {
-        qc.invalidateQueries({ queryKey: [key] });
-      }
+      setCreated(await api("/users", { method: "POST", body: {
+        email, full_name: name, credential, temp_password: credential === "temp_password" ? tempPassword : null } }));
+      qc.invalidateQueries({ queryKey: ["users"] });
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -121,77 +113,48 @@ export function CreateUserModal({ open, onClose, department, canManage = false }
   }
 
   return (
-    <Modal title={department ? `New member · ${department.name}` : "New team account"} open={open} onClose={close}>
+    <Modal title="New team account" open={open} onClose={close}>
       {created ? (
         <div className="space-y-4">
-          <Alert tone="green">
-            Account created for {created.user.full_name}{department && ` and added to ${department.name}`}.
-          </Alert>
+          <Alert tone="green">Account created for {created.user.full_name}.</Alert>
           {created.invite_url ? (
             <>
-              <p className="text-sm text-slate-600">
-                Share this invite link privately. It works once and expires in 72 hours. It will not be shown again.
-              </p>
+              <p className="text-sm text-slate-600">Share this invite link privately. It works once and expires in 72 hours. It will not be shown again.</p>
               <CopyBox value={created.invite_url} />
             </>
+          ) : created.default_password ? (
+            <SignInDetails email={created.user.email} emailed={created.email_sent} password={created.default_password}
+                           loginUrl={created.login_url ?? ""} />
           ) : (
-            <p className="text-sm text-slate-600">
-              Give them the temporary password privately. They will be asked to choose their own password at first sign in.
-            </p>
+            <p className="text-sm text-slate-600">Give them the temporary password privately. They will be asked to choose their own password at first sign-in.</p>
           )}
           <div className="flex justify-end gap-2">
-            {can("users.view") && (
-              <Link to={`/app/users/${created.user.id}`} onClick={close}>
-                <Button variant="secondary">Open account &amp; grant access</Button>
-              </Link>
-            )}
+            <Link to={`/app/users/${created.user.id}`} onClick={close}><Button variant="secondary">Open account &amp; grant access</Button></Link>
             <Button onClick={close}>Done</Button>
           </div>
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-4">
           {error && <Alert>{error}</Alert>}
-          <Field label="Full name">
-            <Input required minLength={2} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-          </Field>
-          <Field label="Email">
-            <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          </Field>
+          <Field label="Full name"><Input required minLength={2} value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
+          <Field label="Email (Gmail)"><Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
           <fieldset className="space-y-2">
             <legend className="mb-1 text-sm font-medium text-slate-700">First sign-in</legend>
-            <label className="flex items-start gap-2 text-sm">
-              <input type="radio" className="mt-0.5" checked={credential === "temp_password"}
-                     onChange={() => setCredential("temp_password")} />
-              <span>Set a temporary password <span className="text-slate-500">(they must change it at first sign-in)</span></span>
-            </label>
-            <label className="flex items-start gap-2 text-sm">
-              <input type="radio" className="mt-0.5" checked={credential === "invite"}
-                     onChange={() => setCredential("invite")} />
-              <span>Generate a one-time invite link</span>
-            </label>
+            {([["default_password", "Default first password", "the forum's standard; they're emailed and must change it"],
+               ["invite", "One-time invite link", "you share the link; they set their own password"],
+               ["temp_password", "A temporary password of your choice", "they must change it at first sign-in"]] as const).map(([key, label, note]) => (
+              <label key={key} className="flex items-start gap-2 text-sm">
+                <input type="radio" className="mt-0.5" checked={credential === key} onChange={() => setCredential(key)} />
+                <span>{label} <span className="text-slate-500">({note})</span></span>
+              </label>
+            ))}
           </fieldset>
           {credential === "temp_password" && (
             <Field label="Temporary password" hint="At least 10 characters. Share it privately.">
-              <Input type="text" required minLength={10} value={tempPassword} autoComplete="off"
-                     onChange={(e) => setTempPassword(e.target.value)} />
+              <Input type="text" required minLength={10} value={tempPassword} autoComplete="off" onChange={(e) => setTempPassword(e.target.value)} />
             </Field>
           )}
-          {department && (
-            <Field label="Position (optional)"
-                   hint="Their access comes from the department and this position. Only positions with a free seat are listed.">
-              <Select value={positionId} onChange={(e) => setPositionId(e.target.value)}>
-                <option value="">Member only, no position</option>
-                {openPositions.map((p) => (
-                  <option key={p.id} value={p.id}>{p.title}{p.is_lead ? " (lead)" : p.is_deputy ? " (deputy)" : ""}</option>
-                ))}
-              </Select>
-            </Field>
-          )}
-          <p className="text-xs text-slate-500">
-            {department
-              ? `They get only the access already set up for ${department.name} and the chosen position.`
-              : "New accounts have no access until you grant permissions."}
-          </p>
+          <p className="text-xs text-slate-500">New accounts have no access until you grant permissions or add them to a department.</p>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={close}>Cancel</Button>
             <Button type="submit" disabled={busy}>{busy ? "Creating…" : "Create account"}</Button>

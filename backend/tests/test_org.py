@@ -165,44 +165,6 @@ def test_default_lead_role_can_add_members(client, make_client, chair, db):
     assert lead_client.post(f"/api/departments/{tech['id']}/members", json={"user_id": member.id}).status_code == 403
 
 
-def test_lead_creates_account_in_own_department(client, make_client, chair, db):
-    """A lead can open an account for a new recruit, straight into their department and a position."""
-    lead = make_user(db, "lead@ietecu.in")
-    client.login("chair@ietecu.in")
-    ops = _dept(client, "Operations")
-    tech = _dept(client, "Technical")
-    lead_pos = _pos(client, "Operations Lead", ops["id"], is_lead=True)
-    crew = _pos(client, "Operations Crew", ops["id"], max_holders=1)
-    tech_pos = _pos(client, "Technical Crew", tech["id"])
-    _grant(client, lead_pos["id"], "org.assign", subject_type="position", scope_type="department", scope_id=ops["id"])
-    _assign(client, lead_pos["id"], lead.id)
-
-    lead_client = make_client()
-    lead_client.login("lead@ietecu.in")
-    new = {"full_name": "New Recruit", "credential": "invite"}
-    r = lead_client.post(f"/api/departments/{ops['id']}/new-member",
-                         json={**new, "email": "new@ietecu.in", "position_id": crew["id"]})
-    assert r.status_code == 201, r.text
-    body = r.json()
-    assert body["invite_url"] and body["user"]["status"] == "invited"
-    assert body["membership"]["department_id"] == ops["id"]
-    assert client.get(f"/api/positions/{crew['id']}").json()["holders"][0]["user"]["id"] == body["user"]["id"]
-    assert lead_client.post("/api/users", json={**new, "email": "x@ietecu.in"}).status_code == 403  # no global create
-
-    # Not in another department, nor into another department's position
-    assert lead_client.post(f"/api/departments/{tech['id']}/new-member",
-                            json={**new, "email": "t@ietecu.in"}).status_code == 403
-    r = lead_client.post(f"/api/departments/{ops['id']}/new-member",
-                         json={**new, "email": "t@ietecu.in", "position_id": tech_pos["id"]})
-    assert r.status_code == 422
-
-    # All-or-nothing: the crew position is full, so no account is left behind
-    r = lead_client.post(f"/api/departments/{ops['id']}/new-member",
-                         json={**new, "email": "full@ietecu.in", "position_id": crew["id"]})
-    assert r.status_code == 409
-    assert db.scalar(select(User.id).where(User.email == "full@ietecu.in")) is None
-
-
 def test_lead_cannot_make_another_lead(client, make_client, chair, db):
     """Leads staff their team with ordinary members only; lead and deputy seats are for admins."""
     lead, member, co_lead = (make_user(db, e) for e in ("lead@ietecu.in", "m@ietecu.in", "co@ietecu.in"))
@@ -217,9 +179,9 @@ def test_lead_cannot_make_another_lead(client, make_client, chair, db):
 
     lead_client = make_client()
     lead_client.login("lead@ietecu.in")
-    new = {"full_name": "New Recruit", "credential": "invite"}
+    new = {"full_name": "New Recruit"}
     for seat in (lead_pos, deputy):
-        r = lead_client.post(f"/api/departments/{ops['id']}/new-member",
+        r = lead_client.post(f"/api/departments/{ops['id']}/member-proposals",
                              json={**new, "email": "x@ietecu.in", "position_id": seat["id"]})
         assert r.status_code == 403, r.text
         assert _assign(lead_client, seat["id"], member.id).status_code == 403

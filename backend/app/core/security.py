@@ -42,3 +42,5 @@ def validate_new_password(password: str, email: str | None = None) -> None:
                        f"Password must be at least {settings.min_password_length} characters.")
     if email and password.lower() == email.lower():
         raise AppError(422, "WEAK_PASSWORD", "Password must not be the same as the email address.")
+    if password == settings.default_member_password:
+        raise AppError(422, "WEAK_PASSWORD", "Choose your own password, not the forum's default one.")

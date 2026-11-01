@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.auth.deps import require
+from app.core.config import settings
 from app.core.db import get_db
 from app.users import service
 from app.users.models import User
@@ -24,8 +25,11 @@ def list_users(q: str | None = None, status: str | None = None, user_type: str |
 @router.post("", response_model=UserCreateOut, status_code=201)
 def create_user(body: UserCreateIn, actor: User = Depends(require("users.create")),
                 db: Session = Depends(get_db)):
-    user, invite_url = service.create_user(db, actor, body)
-    return UserCreateOut(user=UserOut.model_validate(user), invite_url=invite_url)
+    user, invite_url, emailed = service.create_user(db, actor, body)
+    default = body.credential == "default_password"
+    return UserCreateOut(user=UserOut.model_validate(user), invite_url=invite_url, email_sent=emailed,
+                         default_password=settings.default_member_password if default else None,
+                         login_url=f"{settings.frontend_base_url}/login" if default else None)
 
 
 @router.get("/{user_id}", response_model=UserOut)

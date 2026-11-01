@@ -12,6 +12,7 @@ from app.core.db import SessionLocal
 from app.core.errors import error_body, install_error_handlers
 from app.core.request_context import client_ip, from_trusted_proxy, request_ip
 from app.events.router import router as events_router
+from app.members.router import router as members_router
 from app.notifications.router import router as notifications_router
 from app.org.router import router as org_router
 from app.permissions.catalogue import sync_catalogue
@@ -76,6 +77,7 @@ def create_app() -> FastAPI:
     app.include_router(events_router)
     app.include_router(tasks_router)
     app.include_router(notifications_router)
+    app.include_router(members_router)
     return app
 
 

@@ -113,10 +113,11 @@ export function Badge({ tone = "slate", children }: { tone?: BadgeTone; children
 }
 
 export function StatusBadge({ status }: { status: string }) {
-  const tone = ({ active: "green", invited: "blue", suspended: "amber", deactivated: "red" } as const)[
-    status as "active"
-  ] ?? "slate";
-  return <Badge tone={tone}>{status}</Badge>;
+  const [label, tone] = ({
+    active: ["active", "green"], invited: ["not signed in yet", "blue"], suspended: ["suspended", "amber"],
+    deactivated: ["deactivated", "red"], proposed: ["waiting for approval", "amber"], rejected: ["not approved", "red"],
+  } as const)[status as "active"] ?? ([status, "slate"] as const);
+  return <Badge tone={tone}>{label}</Badge>;
 }
 
 export function Alert({ tone = "red", children }: { tone?: "red" | "green" | "amber"; children: ReactNode }) {

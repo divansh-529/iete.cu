@@ -3,11 +3,12 @@
 Each item has a **recommended default** so that development can start straight away. Every one of them is stored in `settings` or as data, so changing a decision later does not require a code change. Tick each box once the Chairperson confirms it.
 
 ## Organisation
-- [ ] **Final org chart.** The default is Chairperson → Vice Chair → Secretary → Joint Secretary, with each department Lead reporting to the Secretary. *To provide:* the list of departments, positions, deputy roles and member names.
+- [x] **Final org chart.** Decided 2026-11-01: the Vice Chairperson and Secretary are equals reporting to the Chairperson; the Joint Secretary and the department Leads report to the Secretary. Departments and Lead positions are created and removed by the Chairperson in the portal. *Still to provide:* member names.
 - [ ] **Terms.** The default is one term per academic year (July–June). Leaderboards and history are grouped by term.
 
 ## Accounts & auth
-- [ ] **First-login credentials.** The default is an invite link when the admin can share it privately, otherwise a temporary password. Either way the user must change their password on first login.
+- [x] **First-login credentials.** Decided 2026-11-01: every new account starts with the forum's default password (`CU@12345678`, configurable), sent to the member's Gmail on approval; they must change it at first sign-in. Invite links and custom temporary passwords remain available to the Chairperson.
+- [x] **Recruitment.** Decided 2026-11-01: Leads (own department), the Vice Chairperson and the Secretary propose members; the Chairperson, Vice Chairperson or Secretary approve. See [02-permissions.md](02-permissions.md).
 - [ ] **Session length.** The default is a 2-hour idle timeout and a 7-day absolute timeout.
 - [ ] **Lockout.** The default is a 15-minute lockout after 5 failed logins in 15 minutes.
 - [ ] **MFA.** The default is not at launch. Optional TOTP for the Chairperson and Treasurer comes later.
@@ -48,7 +49,7 @@ Each item has a **recommended default** so that development can start straight a
 - [ ] **Default document access.** The default is Chairperson, Vice Chair, Secretary and Joint Secretary on all event folders, with others given access per folder.
 
 ## Notifications
-- [ ] **Email?** The default is **in-app only at launch**. Email through a free-tier provider can be enabled later in settings.
+- [ ] **Email?** In-app notifications for everything; **email for new-member sign-in details** through Resend's free tier (`IETE_RESEND_API_KEY`). Until a key is set, approvers are shown the details to pass on by hand.
 
 ## Deployment assumptions
 - [ ] **Volumes.** These are used to size the free tiers. *To confirm:* team ~60–80, roughly 10–20 events a year, up to 500 participants per event, under 5 GB of files a year.

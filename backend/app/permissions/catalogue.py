@@ -28,6 +28,9 @@ _DEFS = [
     PermissionDef("users.edit", "Edit team account details", S),
     PermissionDef("users.suspend", "Suspend, reactivate or deactivate accounts", S),
     PermissionDef("users.reset_password", "Set a new temporary password for a user", S),
+    # Not sensitive, so it can go to the Vice Chairperson and Secretary positions and follow
+    # whoever holds them.
+    PermissionDef("users.approve", "Approve or reject proposed member accounts"),
     # Permissions
     PermissionDef("permissions.view", "View roles, grants and effective access", S),
     PermissionDef("permissions.manage", "Grant and revoke permissions", S),

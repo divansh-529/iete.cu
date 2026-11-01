@@ -3,8 +3,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.users.schemas import UserCreateIn, UserOut
-
 StartReason = Literal["appointed", "promoted", "transferred", "reinstated"]
 EndReason = Literal["promoted", "transferred", "resigned", "removed", "term_ended"]
 Lifecycle = Literal["onboarding", "probation", "active", "alumni", "removed"]
@@ -91,11 +89,6 @@ class MemberIn(BaseModel):
     valid_from: date | None = None
 
 
-class NewMemberIn(UserCreateIn):
-    """A brand-new account that joins the department, optionally into one of its positions."""
-    position_id: int | None = None
-
-
 class ReasonIn(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
 
@@ -125,12 +118,6 @@ class MembershipOut(BaseModel):
     valid_from: date
     valid_to: date | None
     end_reason: str | None
-
-
-class NewMemberOut(BaseModel):
-    user: UserOut
-    invite_url: str | None = None      # shown once; only the hash is stored
-    membership: MembershipOut
 
 
 class ProfileIn(BaseModel):

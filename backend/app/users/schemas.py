@@ -21,13 +21,17 @@ class UserOut(BaseModel):
 class UserCreateIn(BaseModel):
     email: EmailStr
     full_name: str = Field(min_length=2, max_length=120)
-    credential: Literal["temp_password", "invite"]
+    # default_password: the forum's standard first password (settings.default_member_password)
+    credential: Literal["default_password", "temp_password", "invite"] = "default_password"
     temp_password: str | None = None   # required when credential == 'temp_password'
 
 
 class UserCreateOut(BaseModel):
     user: UserOut
     invite_url: str | None = None      # shown once; only the hash is stored
+    email_sent: bool = False           # welcome email with sign-in details
+    default_password: str | None = None   # when credential == 'default_password', to pass on by hand
+    login_url: str | None = None
 
 
 class UserUpdateIn(BaseModel):
