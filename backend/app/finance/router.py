@@ -78,6 +78,7 @@ def income(body: IncomeIn, actor: User = Depends(require("finance.income.record"
 
 @router.post("/finance/expenses", response_model=TransactionDetailOut, status_code=201)
 def expense(body: ExpenseIn, actor: User = Depends(require_any("finance.expense.submit")), db: Session = Depends(get_db)):
+    """The Chairperson's own expense posts at once; anyone else's waits to be verified and approved."""
     return service.detail(db, actor, service.submit_expense(db, actor, body).id)
 
 

@@ -86,12 +86,12 @@ def test_nobody_verifies_or_approves_their_own_expense(make_client, org, db):
     assert treasurer.post(f"/api/finance/expenses/{own['id']}/verify").status_code == 403
     assert treasurer.post(f"/api/finance/expenses/{own['id']}/reject", json={"reason": "Own one"}).status_code == 403
 
-    # The Chairperson too.
-    mine = _expense(chair, account).json()
-    assert chair.post(f"/api/finance/expenses/{mine['id']}/verify").status_code == 403
-    assert treasurer.post(f"/api/finance/expenses/{mine['id']}/verify").status_code == 200
-    assert chair.post(f"/api/finance/expenses/{mine['id']}/approve").status_code == 403
-    assert vc.post(f"/api/finance/expenses/{mine['id']}/approve").status_code == 200
+    # The approver can't approve their own either.
+    grant(db, org.vc, "finance.expense.submit", by=org.chair)
+    theirs = _expense(vc, account).json()
+    assert treasurer.post(f"/api/finance/expenses/{theirs['id']}/verify").status_code == 200
+    assert vc.post(f"/api/finance/expenses/{theirs['id']}/approve").status_code == 403
+    assert chair.post(f"/api/finance/expenses/{theirs['id']}/approve").json()["status"] == "posted"
 
     # The database refuses it as well, even if the service were wrong.
     for column in ("verified_by", "approved_by"):
@@ -394,3 +394,39 @@ def test_member_list_is_only_for_named_positions(make_client, org, db, chair):
     db.commit()
     assert login(make_client, joint).get("/api/memberships").status_code == 403
     assert all("Asha" not in str(e.after) for e in db.query(AuditEvent).filter(AuditEvent.action.like("membership.%")))
+
+
+def test_chairpersons_own_expense_posts_at_once_at_any_amount(make_client, org, db):
+    chair, treasurer = login(make_client, org.chair), login(make_client, org.secretary)
+    account = _account(chair, opening="50000.00")
+    r = _expense(chair, account, amount="27012.60")
+    assert r.status_code == 201, r.text
+    tx = r.json()
+    assert tx["status"] == "posted" and tx["needs_chairperson"] is False and tx["approved_by"] is None
+    assert _balance(chair, account) == 22987.40
+    assert not notifications(treasurer, "expense.submitted")
+    assert db.query(AuditEvent).filter_by(action="finance.expense", entity_id=tx["id"]).count() == 1
+    # Nobody else's expense skips the checks, and a correction is still a reversal.
+    assert chair.post(f"/api/finance/transactions/{tx['id']}/reverse", json={"reason": "Wrong amount"}).status_code == 200
+    assert _balance(chair, account) == 50000
+
+
+def test_chairperson_can_clear_an_own_expense_already_waiting(make_client, org, db):
+    """Expenses submitted before the rule changed were stuck: they needed the Chairperson, who can't approve their own."""
+    chair, vc, treasurer = login(make_client, org.chair), login(make_client, org.vc), login(make_client, org.secretary)
+    account = _account(chair, opening="50000.00")
+    for amount in ("27012.60", "100.00"):
+        db.execute(text("""INSERT INTO fin_transactions (code, txn_type, is_credit, account_id, amount, txn_date, purpose, status, submitted_by)
+                           VALUES (:c, 'expense', false, :a, :m, CURRENT_DATE, 'Old one', 'submitted', :u)"""),
+                   {"c": f"EXP-OLD-{amount}", "a": account["id"], "m": amount, "u": org.chair.id})
+    db.commit()
+    first, second = reversed(chair.get("/api/finance/transactions").json())
+    detail = chair.get(f"/api/finance/transactions/{first['id']}").json()
+    assert detail["can_approve"] is True and detail["can_reject"] is True and detail["needs_chairperson"] is False
+    assert [t["id"] for t in chair.get("/api/finance/transactions", params={"view": "to_act"}).json()] == [second["id"], first["id"]]
+    assert vc.post(f"/api/finance/expenses/{first['id']}/approve").status_code == 403       # still not for anyone else
+    r = chair.post(f"/api/finance/expenses/{first['id']}/approve")
+    assert r.json()["status"] == "posted" and r.json()["approved_by"] is None
+    assert _balance(chair, account) == 22987.40
+    assert chair.post(f"/api/finance/expenses/{second['id']}/reject", json={"reason": "Duplicate"}).json()["status"] == "rejected"
+    assert treasurer.get(f"/api/finance/transactions/{first['id']}").status_code == 200

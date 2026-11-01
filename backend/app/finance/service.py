@@ -1,6 +1,7 @@
 """Finance and membership. An expense is submitted, verified, then approved, and only then counts in
-a balance. Nobody verifies or approves what they submitted. Income and transfers are recorded by people
-trusted to do so and post at once. Anything posted is corrected with a reversal, never an edit."""
+a balance. Nobody verifies or approves what they submitted, except that the Chairperson's own expenses
+post at once (the Chairperson's decision). Income and transfers are recorded by people trusted to do so
+and post at once. Anything posted is corrected with a reversal, never an edit."""
 import hashlib
 import uuid
 from datetime import date
@@ -150,10 +151,12 @@ def submit_expense(db: Session, actor: User, body: ExpenseIn) -> FinTransaction:
     if not can(db, actor, "finance.expense.submit", scope):
         raise forbidden("Choose a department or event you can submit expenses for.")
     _check_date(body.txn_date)
-    tx = _record(db, actor, "expense", False, _account(db, body.account_id, body.txn_date), "submitted",
+    status = "posted" if actor.is_super_admin else "submitted"
+    tx = _record(db, actor, "expense", False, _account(db, body.account_id, body.txn_date), status,
                  **body.model_dump(exclude={"account_id"}))
-    notify(db, engine.users_who_can(db, "finance.expense.verify", GLOBAL, {actor.id}), "expense.submitted",
-           _payload(tx, actor), actor.id)
+    if status == "submitted":
+        notify(db, engine.users_who_can(db, "finance.expense.verify", GLOBAL, {actor.id}), "expense.submitted",
+               _payload(tx, actor), actor.id)
     db.commit()
     return tx
 
@@ -194,7 +197,15 @@ def _can_verify(db: Session, user: User, tx: FinTransaction) -> bool:
             and can(db, user, "finance.expense.verify"))
 
 
+def _own_chair_expense(user: User, tx: FinTransaction) -> bool:
+    """One the Chairperson submitted before their own expenses began posting at once."""
+    return (user.is_super_admin and tx.submitted_by == user.id and tx.txn_type == "expense"
+            and tx.status in ("submitted", "verified"))
+
+
 def _can_approve(db: Session, user: User, tx: FinTransaction) -> bool:
+    if _own_chair_expense(user, tx):
+        return True
     return (tx.txn_type == "expense" and tx.status == "verified" and tx.submitted_by != user.id
             and can(db, user, "finance.expense.approve") and (user.is_super_admin or not _needs_chair(tx)))
 
@@ -233,7 +244,9 @@ def approve(db: Session, actor: User, transaction_id: int) -> None:
             raise forbidden(f"Expenses above ₹{CHAIRPERSON_ABOVE:,} need the Chairperson.")
         raise forbidden("You can't approve this expense.")
     now = utcnow()
-    tx.status, tx.approved_by, tx.approved_at, tx.posted_at = "posted", actor.id, now, now
+    tx.status, tx.posted_at = "posted", now
+    if tx.submitted_by != actor.id:      # the database keeps approved_by different from the submitter
+        tx.approved_by, tx.approved_at = actor.id, now
     audit.record(db, actor.id, "finance.expense_approve", "fin_transaction", tx.id,
                  after={"code": tx.code, "amount": str(tx.amount)})
     notify(db, [tx.submitted_by], "expense.approved", _payload(tx, actor), actor.id)
@@ -357,7 +370,8 @@ def detail(db: Session, user: User, transaction_id: int) -> dict:
                              "added_by": people[a.added_by], "added_at": a.added_at} for a in attachments],
             "can_verify": _can_verify(db, user, tx), "can_approve": _can_approve(db, user, tx),
             "can_reject": _can_reject(db, user, tx), "can_reverse": _can_reverse(db, user, tx),
-            "can_attach": _can_attach(db, user, tx), "needs_chairperson": _needs_chair(tx) and tx.status in ("submitted", "verified")}
+            "can_attach": _can_attach(db, user, tx), "needs_chairperson": (_needs_chair(tx) and tx.status in ("submitted", "verified")
+                                  and not db.get(User, tx.submitted_by).is_super_admin)}
 
 
 # ---------------------------------------------------------------- reconciliation
