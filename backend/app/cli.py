@@ -28,12 +28,12 @@ DEFAULT_ROLES = {
         "users.view", "org.view", "events.view", "events.create", "events.edit", "events.review",
         "events.archive",
         "tasks.view", "tasks.create", "tasks.assign", "tasks.review", "tasks.export",
-        "documents.view", "documents.upload", "documents.review", "points.view",
+        "documents.view", "documents.upload", "documents.review", "finance.expense.submit", "points.view",
         "points.evaluate", "points.leaderboard.view", "reports.view"]),
     "Department Lead": ("Leads of each department", [
         "org.view", "org.assign", "events.view", "events.create", "events.edit", "tasks.view",
         "tasks.create", "tasks.assign", "tasks.review", "documents.view", "documents.upload",
-        "points.leaderboard.view"]),
+        "finance.expense.submit", "points.leaderboard.view"]),
     # Every core team member can propose events for their department; approval decides.
     "Member": ("Ordinary department members", [
         "org.view", "events.view", "events.create", "tasks.view", "documents.view",

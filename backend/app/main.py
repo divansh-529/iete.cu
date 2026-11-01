@@ -18,6 +18,7 @@ from app.org.router import router as org_router
 from app.permissions.catalogue import sync_catalogue
 from app.permissions.router import router as permissions_router
 from app.documents.router import router as documents_router
+from app.finance.router import router as finance_router
 from app.scores.router import router as scores_router
 from app.tasks.router import router as tasks_router
 from app.users.router import router as users_router
@@ -82,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(members_router)
     app.include_router(scores_router)
     app.include_router(documents_router)
+    app.include_router(finance_router)
     return app
 
 

@@ -4,6 +4,8 @@ from app.auth.models import LoginAttempt, UserSession  # noqa: F401
 from app.documents.models import Document, DocumentReview, DocumentVersion, Folder  # noqa: F401
 from app.events.models import (Event, EventChecklistItem, EventDepartment, EventMilestone,  # noqa: F401
                                EventStatusHistory, EventTeamMember)
+from app.finance.models import (FinAccount, FinAttachment, FinReconciliation, FinTransaction,  # noqa: F401
+                                Membership, MembershipCategory)
 from app.members.models import MemberProposal  # noqa: F401
 from app.notifications.models import Notification  # noqa: F401
 from app.scores.models import ScoreCard, ScoreEntry, ScoreRound  # noqa: F401

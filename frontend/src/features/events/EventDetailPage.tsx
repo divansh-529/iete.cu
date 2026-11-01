@@ -2,10 +2,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { api, errorMessage } from "../../api/client";
+import { useAuth } from "../../auth/AuthContext";
 import type { AllowedTransition, EventDetail, PersonRef, TaskSummary } from "../../api/types";
 import { Alert, Button, Card, cx, Empty, Field, formatDate, fromInputDateTime, Input, PageHeader, Spinner,
   Tabs } from "../../components/ui";
 import { FolderBrowser } from "../documents/FolderBrowser";
+import { EventFinance } from "../finance/FinancePage";
 import { ReasonModal } from "../org/modals";
 import { PersonPicker } from "../org/PersonPicker";
 import { TaskFormModal } from "../tasks/TaskFormModal";
@@ -14,11 +16,12 @@ import { EventFormModal } from "./EventFormModal";
 import { APPROVAL_STEPS, EVENT_STATUS, EventStatusBadge } from "./status";
 
 const TABS = [["overview", "Overview"], ["team", "Team"], ["tasks", "Tasks"], ["checklist", "Checklist & milestones"],
-  ["documents", "Documents"], ["history", "History"]] as const;
+  ["documents", "Documents"], ["finance", "Finance"], ["history", "History"]] as const;
 type Tab = (typeof TABS)[number][0];
 
 export function EventDetailPage() {
   const id = Number(useParams().id);
+  const { can } = useAuth();
   const [params, setParams] = useSearchParams();
   const tab = (params.get("tab") as Tab) ?? "overview";
   const qc = useQueryClient();
@@ -72,12 +75,13 @@ export function EventDetailPage() {
         </Alert></div>
       )}
       <ApprovalSteps status={e.status} />
-      <Tabs tabs={TABS} value={tab} onChange={(t) => setParams({ tab: t })} />
+      <Tabs tabs={TABS.filter(([k]) => k !== "finance" || can("finance.view"))} value={tab} onChange={(t) => setParams({ tab: t })} />
       {tab === "overview" && <Overview e={e} />}
       {tab === "team" && <TeamTab e={e} act={act} />}
       {tab === "tasks" && <EventTasks e={e} />}
       {tab === "checklist" && <ChecklistTab e={e} act={act} />}
       {tab === "documents" && <FolderBrowser eventId={e.id} />}
+      {tab === "finance" && can("finance.view") && <EventFinance eventId={e.id} />}
       {tab === "history" && <HistoryTab e={e} />}
       {editing && <EventFormModal event={e} onClose={() => setEditing(false)} />}
       {moving && (

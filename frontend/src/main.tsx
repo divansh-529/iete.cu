@@ -12,6 +12,8 @@ import { LoginPage } from "./features/auth/LoginPage";
 import { AuditPage } from "./features/audit/AuditPage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
 import { DocumentsPage } from "./features/documents/DocumentsPage";
+import { FinancePage } from "./features/finance/FinancePage";
+import { MembershipPage } from "./features/finance/MembershipPage";
 import { RecruitmentPage } from "./features/members/RecruitmentPage";
 import { PersonScoresPage } from "./features/scores/PersonScoresPage";
 import { ScoresPage } from "./features/scores/ScoresPage";
@@ -62,6 +64,8 @@ createRoot(document.getElementById("root")!).render(
               <Route path="tasks" element={<TasksPage />} />
               <Route path="tasks/:id" element={<TaskDetailPage />} />
               <Route path="documents" element={<DocumentsPage />} />
+              <Route path="finance" element={<FinancePage />} />
+              <Route path="membership" element={<MembershipPage />} />
               <Route path="recruitment" element={<RecruitmentPage />} />
               <Route path="scores" element={<ScoresPage />} />
               <Route path="scores/people/:id" element={<PersonScoresPage />} />

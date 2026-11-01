@@ -25,6 +25,8 @@ export interface Me {
   permissions: EffectivePermission[];
   all_permissions: boolean;
   profile_complete: boolean;
+  can_view_members: boolean;
+  can_record_members: boolean;
 }
 
 export interface UserPage {
@@ -446,4 +448,100 @@ export interface DocumentDetail extends DocumentSummary {
   allowed_reviews: string[];
   can_upload_version: boolean;
   can_delete: boolean;
+}
+
+export interface FinAccount {
+  id: number;
+  name: string;
+  description: string | null;
+  opening_balance: string;
+  opening_date: string;
+  active: boolean;
+  credits: string;
+  debits: string;
+  book_balance: string;
+  reconciled_to: string | null;
+  reconciled_difference: string | null;
+}
+
+export interface Transaction {
+  id: number;
+  code: string;
+  txn_type: "income" | "expense" | "transfer_in" | "transfer_out" | "reversal";
+  is_credit: boolean;
+  account: Ref;
+  amount: string;
+  txn_date: string;
+  counterparty: string | null;
+  purpose: string;
+  category: string | null;
+  payment_mode: string | null;
+  payment_reference: string | null;
+  event: Ref | null;
+  department: Ref | null;
+  membership_id: number | null;
+  status: "submitted" | "verified" | "posted" | "rejected";
+  submitted_by: PersonRef;
+  submitted_at: string;
+  reversed_by_code: string | null;
+}
+
+export interface TransactionDetail extends Transaction {
+  verified_by: PersonRef | null;
+  verified_at: string | null;
+  approved_by: PersonRef | null;
+  approved_at: string | null;
+  posted_at: string | null;
+  rejection_reason: string | null;
+  reverses_code: string | null;
+  attachments: { id: number; kind: string; original_filename: string; size_bytes: number; added_by: PersonRef; added_at: string }[];
+  can_verify: boolean;
+  can_approve: boolean;
+  can_reject: boolean;
+  can_reverse: boolean;
+  can_attach: boolean;
+  needs_chairperson: boolean;
+}
+
+export interface Reconciliation {
+  id: number;
+  account: Ref;
+  period_end: string;
+  statement_balance: string;
+  book_balance: string;
+  difference: string;
+  notes: string | null;
+  reconciled_by: PersonRef;
+  reconciled_at: string;
+}
+
+export interface MembershipCategory {
+  id: number;
+  name: string;
+  fee: string;
+  active: boolean;
+}
+
+export interface MembershipRecord {
+  id: number;
+  membership_no: string;
+  user_id: number | null;
+  holder_name: string;
+  father_name: string | null;
+  course: string | null;
+  study_year: string | null;
+  holder_uid: string | null;
+  holder_email: string | null;
+  category: Ref | null;
+  fee_amount: string;
+  status: "pending" | "paid" | "waived" | "refunded" | "cancelled";
+  valid_from: string | null;
+  valid_to: string | null;
+  created_at: string;
+}
+
+export interface MembershipSummary {
+  by_status: Partial<Record<MembershipRecord["status"], number>>;
+  by_category: { name: string; count: number }[];
+  fees_collected: string;
 }

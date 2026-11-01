@@ -157,7 +157,8 @@ def delete_folder(db: Session, actor: User, folder_id: int) -> None:
 
 # ---------------------------------------------------------------- upload
 
-def _store_version(db: Session, actor: User, doc: Document, filename: str, content: bytes) -> DocumentVersion:
+def check_file(filename: str, content: bytes) -> tuple[str, str, str]:
+    """Refuses anything that isn't an allowed file. Returns its clean name, extension and type."""
     name = PurePath((filename or "").replace("\\", "/")).name.strip()
     extension = PurePath(name).suffix.lower()
     if extension not in ALLOWED_TYPES:
@@ -170,6 +171,11 @@ def _store_version(db: Session, actor: User, doc: Document, filename: str, conte
         raise AppError(413, "FILE_TOO_LARGE", f"This file is too large. The limit is {limit // MB} MB.")
     if not content.startswith(signature):
         raise AppError(422, "FILE_CONTENT", f"This file is not a real {extension[1:].upper()} file.")
+    return name, extension, mime_type
+
+
+def _store_version(db: Session, actor: User, doc: Document, filename: str, content: bytes) -> DocumentVersion:
+    name, extension, mime_type = check_file(filename, content)
     last = db.scalar(select(func.max(DocumentVersion.version_no)).where(DocumentVersion.document_id == doc.id)) or 0
     version = DocumentVersion(document_id=doc.id, version_no=last + 1, storage_key=f"documents/{uuid.uuid4().hex}{extension}",
                               original_filename=name, mime_type=mime_type, size_bytes=len(content),

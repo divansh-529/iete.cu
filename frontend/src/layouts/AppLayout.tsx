@@ -13,6 +13,7 @@ interface NavItem {
   label: string;
   icon: string;  // SVG path, 24×24 outline
   permission?: string | string[];   // any of these
+  members?: boolean;                // the membership list goes by position (me.can_view_members)
 }
 
 const NAV: NavItem[] = [
@@ -23,6 +24,11 @@ const NAV: NavItem[] = [
   { to: "/app/tasks", label: "Tasks", icon: "M9 11l3 3 8-8M20 12v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h11" },
   { to: "/app/documents", label: "Documents", permission: "documents.view",
     icon: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zm0 0v5h5M9 13h6m-6 4h6" },
+  { to: "/app/finance", label: "Finance",
+    permission: ["finance.view", "finance.expense.submit", "finance.expense.verify", "finance.expense.approve"],
+    icon: "M3 7h18v12H3zm0 4h18M7 15h3" },
+  { to: "/app/membership", label: "Membership", members: true,
+    icon: "M4 5h16v14H4zm5 5a2 2 0 1 0 0-.01M6 16c.5-1.7 1.7-2.5 3-2.5s2.5.8 3 2.5m3-6h3m-3 3h3" },
   { to: "/app/scores", label: "Score cards",
     icon: "M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z" },
   { to: "/app/org", label: "Organisation", permission: "org.view",
@@ -77,7 +83,7 @@ export function AppLayout() {
     window.location.replace("/login");
   }
 
-  const items = NAV.filter((i) => !i.permission || [i.permission].flat().some((p) => can(p)));
+  const items = NAV.filter((i) => (i.members ? me.can_view_members : !i.permission || [i.permission].flat().some((p) => can(p))));
 
   return (
     <div className="min-h-screen bg-slate-50 md:flex">
