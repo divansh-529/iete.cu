@@ -139,10 +139,10 @@ export function Modal({ title, open, onClose, children }:
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-brand-950/40 p-4 backdrop-blur-sm sm:items-center"
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-brand-950/40 p-4 backdrop-blur-sm"
          onMouseDown={onClose}>
       <div role="dialog" aria-modal="true" aria-label={title}
-           className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl shadow-brand-950/20" onMouseDown={(e) => e.stopPropagation()}>
+           className="my-auto w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl shadow-brand-950/20" onMouseDown={(e) => e.stopPropagation()}>
         <div className="h-1 bg-gradient-to-r from-brand-600 to-brand-400" />
         <header className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
