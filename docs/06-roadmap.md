@@ -95,7 +95,15 @@ gantt
 - Upload, replace (new version), review status, soft delete, search and filter, and preview (PDF and images in the browser).
 - **Exit:** Workflow 19.5 works end to end. A document deleted by a member with permission is still visible in the audit log, and its versions are kept.
 
-## Phase 5 — Points (≈3 weeks)
+## Phase 5 — Points (≈3 weeks) ✅ built as score cards
+
+> **Status (2026-11-01):** the Chairperson replaced the per-event design below with **score cards** (migration `0006`, `app/scores`). The Chairperson opens a scoring round whenever they choose; everyone except the Chairperson gets a card worth up to 20, filled in by fixed scorers (`app/scores/rules.py`):
+> - Member: Lead 5, Secretary 5, Vice Chair 5, Chairperson 5
+> - Department Lead: Joint Secretary 5, Secretary 5, Vice Chair 5, Chairperson 5
+> - Joint Secretary: Secretary 7, Vice Chair 7, Chairperson 6
+> - Vice Chairperson: Secretary 10, Chairperson 10 · Secretary: Vice Chair 10, Chairperson 10
+>
+> Scores stay private while a round is open (the Chairperson sees all); closing it publishes every card to the whole team. Totals add up across rounds (20, 40, …) and feed promotion and demotion decisions, which the Chairperson makes in Organisation. The per-event evaluations, evaluator map and ledger below are not built.
 - Migrations: `evaluator_map`, `evaluations`, `point_submissions`, `point_decisions`, `points_ledger`.
 - Evaluator map editor. Opening evaluations for an event. The evaluator inbox. Submitting with a score, maximum, remarks and evidence.
 - Chairperson review screen showing every submission per evaluatee, the combined total (using the configured mode), and approve, adjust, reject or return.

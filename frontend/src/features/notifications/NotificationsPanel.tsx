@@ -30,6 +30,8 @@ function describe(n: AppNotification): { text: string; to: string } {
     case "event.needs_review": return { text: `${p.by} proposed “${p.name}”. It needs your review.`, to: event };
     case "event.needs_approval": return { text: `“${p.name}” is waiting for your approval`, to: event };
     case "event.team_added": return { text: `${p.by} added you to “${p.name}” as ${p.event_role}`, to: event };
+    case "score.round_opened": return { text: `Scoring is open: “${p.title}”. Please give your scores.`, to: "/app/scores?tab=score" };
+    case "score.published": return { text: `“${p.title}” score cards are published. See yours.`, to: "/app/scores" };
     case "account.proposed": return { text: `${p.by} proposed ${p.name} for ${p.department}. Waiting for your approval.`, to: "/app/recruitment" };
     case "account.approved": return { text: `${p.by} approved ${p.name}. Their account is active.`, to: "/app/recruitment?tab=decided" };
     case "account.rejected": return { text: `${p.by} didn't approve ${p.name}: “${p.remarks}”`, to: "/app/recruitment?tab=decided" };

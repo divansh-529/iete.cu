@@ -298,6 +298,65 @@ export interface ProposalDecision {
   default_password: string;
 }
 
+// ---------------------------------------------------------------- score cards
+
+export interface ScoreRound {
+  id: number;
+  title: string;
+  status: "open" | "closed";
+  opened_at: string;
+  closed_at: string | null;
+  cards: number;
+  entries_given: number;
+  entries_expected: number;
+}
+
+export interface ScoreSlot {
+  slot: string;
+  label: string;
+  max_points: string;
+  points: string | null;
+  remarks: string | null;
+  scored_by: PersonRef | null;
+  given: boolean;
+  editable: boolean;
+}
+
+export interface ScoreCard {
+  card_id: number;
+  person: PersonRef;
+  category: string;
+  category_label: string;
+  department: Ref | null;
+  slots: ScoreSlot[];
+  total: string;
+  max_total: string;
+}
+
+export interface ToScore {
+  round: ScoreRound;
+  cards: ScoreCard[];
+  my_given: number;
+  my_expected: number;
+}
+
+export interface PersonScores {
+  person: PersonRef;
+  cards: (ScoreCard & { round_id: number; round_title: string; closed_at: string | null })[];
+  total: string;
+  max_total: string;
+}
+
+export interface LeaderboardRow {
+  person: PersonRef;
+  category_label: string;
+  department: string | null;
+  rounds: number;
+  total: string;
+  max_total: string;
+  latest: string;
+}
+
 // ---------------------------------------------------------------- notifications
 
 export interface AppNotification {

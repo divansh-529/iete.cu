@@ -17,6 +17,7 @@ from app.notifications.router import router as notifications_router
 from app.org.router import router as org_router
 from app.permissions.catalogue import sync_catalogue
 from app.permissions.router import router as permissions_router
+from app.scores.router import router as scores_router
 from app.tasks.router import router as tasks_router
 from app.users.router import router as users_router
 
@@ -78,6 +79,7 @@ def create_app() -> FastAPI:
     app.include_router(tasks_router)
     app.include_router(notifications_router)
     app.include_router(members_router)
+    app.include_router(scores_router)
     return app
 
 

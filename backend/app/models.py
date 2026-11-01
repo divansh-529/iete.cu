@@ -5,6 +5,7 @@ from app.events.models import (Event, EventChecklistItem, EventDepartment, Event
                                EventStatusHistory, EventTeamMember)
 from app.members.models import MemberProposal  # noqa: F401
 from app.notifications.models import Notification  # noqa: F401
+from app.scores.models import ScoreCard, ScoreEntry, ScoreRound  # noqa: F401
 from app.org.models import (Department, DepartmentMembership, MemberProfile, Position,  # noqa: F401
                             PositionAssignment, Term)
 from app.permissions.models import Grant, Permission, PermissionAudit, Role, RolePermission  # noqa: F401

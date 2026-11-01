@@ -21,6 +21,8 @@ const NAV: NavItem[] = [
   { to: "/app/events", label: "Events",
     icon: "M8 3v3m8-3v3M4 9h16M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1m4 7h2v2H9z" },
   { to: "/app/tasks", label: "Tasks", icon: "M9 11l3 3 8-8M20 12v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h11" },
+  { to: "/app/scores", label: "Score cards",
+    icon: "M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z" },
   { to: "/app/org", label: "Organisation", permission: "org.view",
     icon: "M12 3v5m0 0H6v4m6-4h6v4M4 12h4v4H4zm12 0h4v4h-4zM10 16h4v5h-4zm2-4v4" },
   { to: "/app/recruitment", label: "Recruitment", permission: ["users.approve", "org.assign"],
