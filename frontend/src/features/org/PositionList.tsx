@@ -28,10 +28,11 @@ export function PositionList({ positions, canAssign, canManage }:
                   <Link to={`/app/org/positions/${p.id}`} className="font-medium text-brand-700 hover:underline">{p.title}</Link>
                   {p.is_lead && <Badge tone="blue">Lead</Badge>}
                   {p.is_deputy && <Badge>Deputy</Badge>}
-                  {p.holders.length === 0 && <Badge tone="amber">Vacant</Badge>}
+                  {p.is_category && <Badge>Category</Badge>}
+                  {p.holders.length === 0 && !p.is_category && <Badge tone="amber">Vacant</Badge>}
                   {p.max_holders > 1 && <span className="text-xs text-slate-500">{p.holders.length}/{p.max_holders} filled</span>}
                 </div>
-                {canStaff(p) && !full && <Button variant="secondary" onClick={() => setAssigning(p)}>Assign</Button>}
+                {canStaff(p) && !full && !p.is_category && <Button variant="secondary" onClick={() => setAssigning(p)}>Assign</Button>}
               </div>
               {p.holders.length > 0 && (
                 <ul className="mt-2 space-y-1">

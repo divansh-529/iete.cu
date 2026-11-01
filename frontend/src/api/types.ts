@@ -108,6 +108,7 @@ export interface Position {
   reports_to_position_id: number | null;
   is_lead: boolean;
   is_deputy: boolean;
+  is_category: boolean;
   max_holders: number;
   rank_order: number;
   status: "active" | "archived";
@@ -172,6 +173,7 @@ export interface ChartNode {
   reports_to_position_id: number | null;
   is_lead: boolean;
   is_deputy: boolean;
+  is_category: boolean;
   max_holders: number;
   holders: PersonRef[];
 }

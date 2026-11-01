@@ -61,7 +61,7 @@ def get_department(db: Session, dept_id: int) -> Department:
 
 def get_position(db: Session, position_id: int) -> Position:
     pos = db.get(Position, position_id)
-    if pos is None:
+    if pos is None or pos.status == "deleted":
         raise not_found("Position")
     return pos
 
@@ -140,7 +140,7 @@ def department_summaries(db: Session, visible: set[int] | None, include_archived
             "id": d.id, "name": d.name, "description": d.description, "parent_id": d.parent_id,
             "status": d.status, "member_count": members.get(d.id, 0),
             "position_count": len(dept_positions),
-            "vacant_positions": sum(1 for p in dept_positions if not holders[p.id]),
+            "vacant_positions": sum(1 for p in dept_positions if not holders[p.id] and not p.is_category),
             "leads": [_person(u) for p in dept_positions if p.is_lead for _, u in holders[p.id]],
         })
     return out
@@ -209,7 +209,8 @@ def set_department_status(db: Session, actor: User, dept_id: int, archive: bool,
     before = _dept_snapshot(dept)
     dept.status = "archived" if archive else "active"
     if archive:
-        db.execute(update(Position).where(Position.department_id == dept.id).values(status="archived"))
+        db.execute(update(Position).where(Position.department_id == dept.id, Position.status != "deleted")
+                   .values(status="archived"))
     audit.record(db, actor.id, "department.archive" if archive else "department.restore",
                  "department", dept.id, before=before, after={**_dept_snapshot(dept), "reason": reason})
     db.commit()
@@ -235,7 +236,7 @@ def delete_department(db: Session, actor: User, dept_id: int, reason: str, confi
     summary = {"members_removed": 0, "positions_closed": 0, "grants_revoked": 0, "proposals_declined": 0,
                "subdepartments_moved": 0}
 
-    for pos in db.scalars(select(Position).where(Position.department_id == dept.id)):
+    for pos in db.scalars(select(Position).where(Position.department_id == dept.id, Position.status != "deleted")):
         for pa, _ in _open_holders(db, [pos.id])[pos.id]:
             _close_assignment(db, actor, pa, max(today, pa.valid_from), "removed", f"{dept.name} was deleted")
         if pos.status == "active":
@@ -297,7 +298,7 @@ def _check_no_cycle_position(db: Session, position_id: int | None, reports_to: i
 def _pos_snapshot(p: Position) -> dict:
     return {"title": p.title, "department_id": p.department_id,
             "reports_to_position_id": p.reports_to_position_id, "is_lead": p.is_lead,
-            "is_deputy": p.is_deputy, "max_holders": p.max_holders, "status": p.status}
+            "is_deputy": p.is_deputy, "is_category": p.is_category, "max_holders": p.max_holders, "status": p.status}
 
 
 def position_views(db: Session, positions: list[Position]) -> list[dict]:
@@ -307,7 +308,7 @@ def position_views(db: Session, positions: list[Position]) -> list[dict]:
     return [{
         "id": p.id, "title": p.title, "description": p.description, "department_id": p.department_id,
         "department_name": dept_names.get(p.department_id), "reports_to_position_id": p.reports_to_position_id,
-        "is_lead": p.is_lead, "is_deputy": p.is_deputy, "max_holders": p.max_holders,
+        "is_lead": p.is_lead, "is_deputy": p.is_deputy, "is_category": p.is_category, "max_holders": p.max_holders,
         "rank_order": p.rank_order, "status": p.status,
         "holders": [{"assignment_id": pa.id, "user": _person(u), "valid_from": pa.valid_from}
                     for pa, u in holders[p.id]],
@@ -316,7 +317,7 @@ def position_views(db: Session, positions: list[Position]) -> list[dict]:
 
 def list_positions(db: Session, visible: set[int] | None, department_id: int | None,
                    leadership_only: bool, include_archived: bool) -> list[Position]:
-    stmt = select(Position).order_by(Position.rank_order, Position.title)
+    stmt = select(Position).where(Position.status != "deleted").order_by(Position.rank_order, Position.title)
     if not include_archived:
         stmt = stmt.where(Position.status == "active")
     if leadership_only:
@@ -329,6 +330,8 @@ def list_positions(db: Session, visible: set[int] | None, department_id: int | N
 
 
 def _validate_position_links(db: Session, body: PositionIn, position_id: int | None) -> None:
+    if body.is_category and (body.is_lead or body.is_deputy):
+        raise AppError(422, "INVALID_CATEGORY", "A category can't also be a lead or deputy.")
     if body.department_id is not None and get_department(db, body.department_id).status != "active":
         raise AppError(409, "INVALID_STATE", "That department is archived.")
     if body.reports_to_position_id is not None:
@@ -343,8 +346,22 @@ def create_position(db: Session, actor: User, body: PositionIn) -> Position:
     db.add(pos)
     db.flush()
     audit.record(db, actor.id, "position.create", "position", pos.id, after=_pos_snapshot(pos))
+    _grant_lead_role(db, actor, pos)
     db.commit()
     return pos
+
+
+def _grant_lead_role(db: Session, actor: User, pos: Position) -> None:
+    """A new department Lead position gets what the seeded ones have, or its holder could not lead."""
+    from app.cli import _grant_once
+    from app.permissions.models import Role
+
+    if pos.department_id is None or not pos.is_lead:
+        return
+    role = db.scalar(select(Role).where(Role.name == "Department Lead"))
+    if role is not None:
+        _grant_once(db, actor, "position", pos.id, "department", pos.department_id, role=role)
+        engine.clear_cache(db)
 
 
 def update_position(db: Session, actor: User, position_id: int, body: PositionIn) -> Position:
@@ -365,6 +382,43 @@ def update_position(db: Session, actor: User, position_id: int, body: PositionIn
     audit.record(db, actor.id, "position.update", "position", pos.id, before=before, after=_pos_snapshot(pos))
     db.commit()
     return pos
+
+
+def delete_position(db: Session, actor: User, position_id: int, reason: str, confirm_title: str) -> dict:
+    """The Chairperson removes a lead, category or other box from the reporting lines, even while
+    it is held. Holders lose the position and the access it gave, and whoever reported to it reports
+    one level up. The row stays as 'deleted' so people's history still names it."""
+    from app.permissions.models import Grant, PermissionAudit
+
+    if not actor.is_super_admin:
+        raise forbidden("Only the Chairperson can delete from the reporting lines.")
+    pos = get_position(db, position_id)
+    if confirm_title.strip().lower() != pos.title.lower():
+        raise AppError(422, "CONFIRMATION_MISMATCH", f"Type the position's title, “{pos.title}”, to confirm.")
+    holders = _open_holders(db, [pos.id])[pos.id]
+    if any(u.is_super_admin for _, u in holders):
+        raise AppError(409, "POSITION_PROTECTED", "This is the Chairperson's own position, so it can't be deleted.")
+    now, today = utcnow(), _today()
+    for pa, _ in holders:
+        _close_assignment(db, actor, pa, max(today, pa.valid_from), "removed", f"{pos.title} was deleted")
+    grants = db.scalars(select(Grant).where(Grant.revoked_at.is_(None), Grant.subject_type == "position",
+                                            Grant.subject_id == pos.id)).all()
+    for g in grants:
+        g.revoked_at, g.revoked_by = now, actor.id
+        db.add(PermissionAudit(actor_id=actor.id, action="revoke", subject_type=g.subject_type,
+                               subject_id=g.subject_id, permission_code=g.permission_code, role_id=g.role_id,
+                               scope_type=g.scope_type, scope_id=g.scope_id, old_value={"grant_id": g.id},
+                               reason=f"Position deleted: {reason}"))
+    moved = db.execute(update(Position).where(Position.reports_to_position_id == pos.id, Position.status != "deleted")
+                       .values(reports_to_position_id=pos.reports_to_position_id)).rowcount
+    summary = {"holders_removed": len(holders), "grants_revoked": len(grants), "reports_moved": moved}
+    before = _pos_snapshot(pos)
+    pos.status = "deleted"
+    audit.record(db, actor.id, "position.delete", "position", pos.id, before=before,
+                 after={**_pos_snapshot(pos), "reason": reason, **summary})
+    engine.clear_cache(db)
+    db.commit()
+    return summary
 
 
 def set_position_status(db: Session, actor: User, position_id: int, archive: bool, reason: str) -> Position:
@@ -404,6 +458,8 @@ def _open_assignment(db: Session, actor: User, user: User, pos: Position, start:
                      reason: str, note: str | None) -> PositionAssignment:
     if pos.status != "active":
         raise AppError(409, "INVALID_STATE", "This position is archived.")
+    if pos.is_category:
+        raise AppError(409, "IS_CATEGORY", "This is a category, so nobody can be assigned to it.")
     holders = _open_holders(db, [pos.id])[pos.id]
     if any(u.id == user.id for _, u in holders):
         raise AppError(409, "ALREADY_HOLDS", f"{user.full_name} already holds this position.")
@@ -657,7 +713,7 @@ def chart(db: Session, visible: set[int] | None) -> list[dict]:
              "department_name": v["department_name"],
              # A line to a position the viewer cannot see is dropped so the node becomes a root.
              "reports_to_position_id": v["reports_to_position_id"] if v["reports_to_position_id"] in ids else None,
-             "is_lead": v["is_lead"], "is_deputy": v["is_deputy"], "max_holders": v["max_holders"],
+             "is_lead": v["is_lead"], "is_deputy": v["is_deputy"], "is_category": v["is_category"], "max_holders": v["max_holders"],
              "holders": [h["user"] for h in v["holders"]]} for v in views]
 
 

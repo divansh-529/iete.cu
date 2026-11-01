@@ -8,7 +8,7 @@ from app.org import service
 from app.org.models import Term
 from app.org.schemas import (AssignIn, AssignmentOut, ChartNode, DeleteDepartmentIn, DepartmentDeletedOut,
                              DepartmentDetailOut, DepartmentIn, DepartmentOut, EndAssignmentIn, EndMembershipIn, MemberIn, MembershipOut,
-                             PersonRef, PositionIn, PositionOut, ProfileIn, ProfileOut, ReasonIn, SelfProfileIn,
+                             PersonRef, DeletePositionIn, PositionDeletedOut, PositionIn, PositionOut, ProfileIn, ProfileOut, ReasonIn, SelfProfileIn,
                              TermIn, TermOut, TransferIn, UserOrgOut)
 from app.permissions.engine import department_scope, ensure, visible_department_ids
 from app.users.models import User
@@ -136,6 +136,12 @@ def position_history(position_id: int, user: User = Depends(require_any("org.vie
 def update_position(position_id: int, body: PositionIn, actor: User = Depends(require_any("org.manage")),
                     db: Session = Depends(get_db)):
     return service.position_views(db, [service.update_position(db, actor, position_id, body)])[0]
+
+
+@router.post("/positions/{position_id}/delete", response_model=PositionDeletedOut)
+def delete_position(position_id: int, body: DeletePositionIn, actor: User = Depends(require_any("org.manage")),
+                    db: Session = Depends(get_db)):
+    return service.delete_position(db, actor, position_id, body.reason, body.confirm_title)
 
 
 @router.post("/positions/{position_id}/archive", response_model=PositionOut)

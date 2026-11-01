@@ -114,7 +114,8 @@ export function PositionFormModal({ position, departmentId, onClose }: {
                  const body = {
                    title, description: description || null, department_id: dept ? Number(dept) : null,
                    reports_to_position_id: reportsTo ? Number(reportsTo) : null, is_lead: isLead,
-                   is_deputy: isDeputy, max_holders: Number(maxHolders), rank_order: Number(rank),
+                   is_deputy: isDeputy, is_category: position?.is_category ?? false, max_holders: Number(maxHolders),
+                   rank_order: Number(rank),
                  };
                  await api(position ? `/positions/${position.id}` : "/positions", { method: position ? "PUT" : "POST", body });
                  refresh();
@@ -147,6 +148,83 @@ export function PositionFormModal({ position, departmentId, onClose }: {
         <label className="flex items-center gap-2"><input type="checkbox" checked={isDeputy} onChange={(e) => setIsDeputy(e.target.checked)} /> Deputy</label>
       </div>
       <Field label="Description / responsibilities"><Input value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
+    </FormModal>
+  );
+}
+
+/** Chairperson's shortcut from the reporting lines: a lead or a category, placed under a chosen box. */
+export function AddToChartModal({ parent, onClose }: { parent?: { id: number; title: string }; onClose: () => void }) {
+  const refresh = useOrgRefresh();
+  const depts = useQuery({ queryKey: ["departments", false], queryFn: () => api<Department[]>("/departments") });
+  const positions = useQuery({ queryKey: ["positions", "all"], queryFn: () => api<Position[]>("/positions") });
+  const [kind, setKind] = useState<"lead" | "category">("lead");
+  const [title, setTitle] = useState("");
+  const [dept, setDept] = useState("");
+  const [reportsTo, setReportsTo] = useState(parent ? String(parent.id) : "");
+  return (
+    <FormModal title={parent ? `Add under ${parent.title}` : "Add to reporting lines"} submitLabel="Add" onClose={onClose}
+               onSubmit={async () => {
+                 await api("/positions", {
+                   method: "POST",
+                   body: { title, department_id: dept ? Number(dept) : null, reports_to_position_id: reportsTo ? Number(reportsTo) : null,
+                           is_lead: kind === "lead", is_category: kind === "category" },
+                 });
+                 refresh();
+               }}>
+      <Field label="Type" hint={kind === "lead" ? "A person can be assigned to it. In a department, they get that department's Lead access."
+                                                : "A heading that groups positions. Nobody is assigned to it."}>
+        <Select value={kind} onChange={(e) => setKind(e.target.value as "lead" | "category")}>
+          <option value="lead">Lead</option>
+          <option value="category">Category</option>
+        </Select>
+      </Field>
+      <Field label="Title"><Input required minLength={2} maxLength={80} value={title} onChange={(e) => setTitle(e.target.value)} autoFocus /></Field>
+      <Field label="Department">
+        <Select value={dept} onChange={(e) => setDept(e.target.value)}>
+          <option value="">— No department —</option>
+          {depts.data?.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </Select>
+      </Field>
+      <Field label="Reports to">
+        <Select value={reportsTo} onChange={(e) => setReportsTo(e.target.value)}>
+          <option value="">— Nobody (top of the chart) —</option>
+          {positions.data?.map((p) => (
+            <option key={p.id} value={p.id}>{p.title}{p.department_name ? ` (${p.department_name})` : ""}</option>
+          ))}
+        </Select>
+      </Field>
+    </FormModal>
+  );
+}
+
+/** Chairperson only: remove a box from the reporting lines, even while someone holds it. */
+export function DeletePositionModal({ position, onClose, onDeleted }: {
+  position: { id: number; title: string; holderCount: number }; onClose: () => void; onDeleted?: () => void;
+}) {
+  const refresh = useOrgRefresh();
+  const [confirm, setConfirm] = useState("");
+  const [reason, setReason] = useState("");
+  return (
+    <FormModal title={`Delete ${position.title}`} submitLabel="Delete permanently" danger onClose={onClose}
+               onSubmit={async () => {
+                 await api(`/positions/${position.id}/delete`, { method: "POST", body: { reason, confirm_title: confirm } });
+                 refresh();
+                 onDeleted?.();
+               }}>
+      <Alert tone="amber">
+        <p className="font-medium">This happens straight away and can't be undone:</p>
+        <ul className="mt-1 list-disc pl-5">
+          {position.holderCount > 0 && <li>{position.holderCount} person(s) lose this position and the access it gives.</li>}
+          <li>Anyone reporting to it will report one level up.</li>
+        </ul>
+        <p className="mt-2">People's history and the audit log will still show it.</p>
+      </Alert>
+      <Field label="Reason (recorded in the audit log)">
+        <Input required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
+      </Field>
+      <Field label={`Type “${position.title}” to confirm`}>
+        <Input required value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="off" />
+      </Field>
     </FormModal>
   );
 }

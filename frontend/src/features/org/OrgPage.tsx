@@ -5,7 +5,7 @@ import { api, errorMessage } from "../../api/client";
 import type { ChartNode, Department, Position, Term } from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
 import { Alert, Badge, Button, Card, cx, Empty, Field, formatDate, Input, Modal, PageHeader, Spinner } from "../../components/ui";
-import { DepartmentFormModal, PositionFormModal } from "./modals";
+import { AddToChartModal, DepartmentFormModal, PositionFormModal } from "./modals";
 import { OrgChart } from "./OrgChart";
 import { PositionList } from "./PositionList";
 
@@ -41,13 +41,23 @@ export function OrgPage() {
 }
 
 function ChartTab() {
+  const { me } = useAuth();
+  const [adding, setAdding] = useState(false);
   const chart = useQuery({ queryKey: ["chart"], queryFn: () => api<ChartNode[]>("/org/chart") });
   if (chart.isLoading) return <Spinner />;
   if (chart.error) return <Alert>{errorMessage(chart.error)}</Alert>;
-  const vacant = chart.data!.filter((n) => n.holders.length === 0).length;
+  const vacant = chart.data!.filter((n) => n.holders.length === 0 && !n.is_category).length;
+  const editable = !!me?.user.is_super_admin;
   return (
-    <Card title="Reporting lines" actions={vacant > 0 && <Badge tone="amber">{vacant} vacant position(s)</Badge>}>
-      {chart.data!.length ? <OrgChart nodes={chart.data!} /> : <Empty>No positions yet. Create them under Leadership or a department.</Empty>}
+    <Card title="Reporting lines"
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              {vacant > 0 && <Badge tone="amber">{vacant} vacant position(s)</Badge>}
+              {editable && <Button onClick={() => setAdding(true)}>+ Add lead or category</Button>}
+            </div>
+          }>
+      {chart.data!.length ? <OrgChart nodes={chart.data!} editable={editable} /> : <Empty>No positions yet. Create them under Leadership or a department.</Empty>}
+      {adding && <AddToChartModal onClose={() => setAdding(false)} />}
     </Card>
   );
 }

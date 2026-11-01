@@ -103,6 +103,8 @@ gantt
 - Upload, replace (new version), review status, soft delete, search and filter, and preview (PDF and images in the browser).
 - **Exit:** Workflow 19.5 works end to end. A document deleted by a member with permission is still visible in the audit log, and its versions are kept.
 
+> **Reporting lines (2026-11-01):** the Chairperson can add a lead or a category from the org chart and delete any box, even while it is held (migration `0010`). A category groups positions and nobody holds it. Deleted positions keep their row as `deleted`, so history still names them; the Chairperson's own position can't be deleted. A new department Lead position gets the Department Lead role.
+
 ## Phase 5 — Points (≈3 weeks) ✅ built as score cards
 
 > **Status (2026-11-01):** the Chairperson replaced the per-event design below with **score cards** (migration `0006`, `app/scores`). The Chairperson opens a scoring round whenever they choose; everyone except the Chairperson gets a card worth up to 20, filled in by fixed scorers (`app/scores/rules.py`):

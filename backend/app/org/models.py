@@ -12,6 +12,7 @@ ORG_STATUSES = ("active", "archived")
 # 'deleted': removed by the Chairperson. Hidden everywhere and cannot be restored, but the row
 # stays so that past memberships, events and the audit log still show which department it was.
 DEPARTMENT_STATUSES = ("active", "archived", "deleted")
+POSITION_STATUSES = ("active", "archived", "deleted")
 START_REASONS = ("appointed", "promoted", "transferred", "reinstated")
 END_REASONS = ("promoted", "transferred", "resigned", "removed", "term_ended")
 LIFECYCLE_STATUSES = ("onboarding", "probation", "active", "alumni", "removed")
@@ -52,7 +53,7 @@ class Department(Base):
 class Position(Base):
     __tablename__ = "positions"
     __table_args__ = (
-        CheckConstraint(f"status IN {ORG_STATUSES}", name="positions_status_check"),
+        CheckConstraint(f"status IN {POSITION_STATUSES}", name="positions_status_check"),
         CheckConstraint("max_holders > 0", name="positions_max_holders_check"),
         CheckConstraint("reports_to_position_id IS DISTINCT FROM id", name="positions_not_self_report"),
     )
@@ -64,6 +65,8 @@ class Position(Base):
     reports_to_position_id: Mapped[int | None] = mapped_column(ForeignKey("positions.id"))
     is_lead: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     is_deputy: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # A heading in the reporting lines: it groups positions and nobody holds it.
+    is_category: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     max_holders: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     rank_order: Mapped[int] = mapped_column(Integer, server_default=text("100"))
     status: Mapped[str] = mapped_column(Text, server_default="active")

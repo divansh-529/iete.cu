@@ -39,6 +39,7 @@ class PositionIn(BaseModel):
     reports_to_position_id: int | None = None
     is_lead: bool = False
     is_deputy: bool = False
+    is_category: bool = False
     max_holders: int = Field(default=1, ge=1, le=100)
     rank_order: int = Field(default=100, ge=0, le=10000)
 
@@ -58,6 +59,7 @@ class PositionOut(BaseModel):
     reports_to_position_id: int | None
     is_lead: bool
     is_deputy: bool
+    is_category: bool
     max_holders: int
     rank_order: int
     status: str
@@ -100,6 +102,17 @@ class DepartmentDeletedOut(BaseModel):
     grants_revoked: int
     proposals_declined: int
     subdepartments_moved: int
+
+
+class DeletePositionIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+    confirm_title: str = Field(max_length=80)         # must match the position's title
+
+
+class PositionDeletedOut(BaseModel):
+    holders_removed: int
+    grants_revoked: int
+    reports_moved: int
 
 
 class ReasonIn(BaseModel):
@@ -186,6 +199,7 @@ class ChartNode(BaseModel):
     reports_to_position_id: int | None
     is_lead: bool
     is_deputy: bool
+    is_category: bool
     max_holders: int
     holders: list[PersonRef]
 

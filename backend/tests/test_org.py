@@ -145,17 +145,14 @@ def test_department_scoped_lead(client, make_client, chair, db):
 
 
 def test_default_lead_role_can_add_members(client, make_client, chair, db):
-    """The seeded Department Lead role, granted to a Lead position, lets its holder add team members."""
+    """A new Lead position gets the seeded Department Lead role, which lets its holder add team members."""
     lead, member = make_user(db, "lead@ietecu.in"), make_user(db, "m@ietecu.in")
     client.login("chair@ietecu.in")
     ops = _dept(client, "Operations")
     tech = _dept(client, "Technical")
-    role = client.post("/api/roles", json={"name": "Department Lead", "reason": "test",
-                                           "permissions": DEFAULT_ROLES["Department Lead"][1]}).json()
+    client.post("/api/roles", json={"name": "Department Lead", "reason": "test",
+                                    "permissions": DEFAULT_ROLES["Department Lead"][1]})
     lead_pos = _pos(client, "Operations Lead", ops["id"], is_lead=True)
-    r = _grant(client, lead_pos["id"], role_id=role["id"], subject_type="position",
-               scope_type="department", scope_id=ops["id"])
-    assert r.status_code == 201, r.text
     _assign(client, lead_pos["id"], lead.id)
 
     lead_client = make_client()

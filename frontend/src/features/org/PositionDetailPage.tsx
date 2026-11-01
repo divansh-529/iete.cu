@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { api, errorMessage } from "../../api/client";
 import type { Assignment, Position } from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
 import { Alert, Badge, Button, Card, Empty, formatDate, PageHeader, Spinner } from "../../components/ui";
 import { GrantsCard } from "../permissions/GrantsCard";
-import { PositionFormModal, ReasonModal, useOrgRefresh } from "./modals";
+import { DeletePositionModal, PositionFormModal, ReasonModal, useOrgRefresh } from "./modals";
 import { PositionList } from "./PositionList";
 
 export const REASON_LABELS: Record<string, string> = {
@@ -16,9 +16,10 @@ export const REASON_LABELS: Record<string, string> = {
 
 export function PositionDetailPage() {
   const id = Number(useParams().id);
-  const { can } = useAuth();
+  const { can, me } = useAuth();
   const refresh = useOrgRefresh();
-  const [modal, setModal] = useState<null | "edit" | "archive" | "restore">(null);
+  const navigate = useNavigate();
+  const [modal, setModal] = useState<null | "edit" | "archive" | "restore" | "delete">(null);
   const position = useQuery({ queryKey: ["position", id], queryFn: () => api<Position>(`/positions/${id}`) });
   const history = useQuery({ queryKey: ["position-history", id], queryFn: () => api<Assignment[]>(`/positions/${id}/history`) });
 
@@ -38,6 +39,7 @@ export function PositionDetailPage() {
                       {can("org.manage") && !archived && <Button variant="secondary" onClick={() => setModal("edit")}>Edit</Button>}
                       {can("org.manage") && !archived && <Button variant="secondary" onClick={() => setModal("archive")}>Archive</Button>}
                       {can("org.manage") && archived && <Button variant="secondary" onClick={() => setModal("restore")}>Restore</Button>}
+                      {me?.user.is_super_admin && <Button variant="danger" onClick={() => setModal("delete")}>Delete</Button>}
                     </div>
                   } />
       <div className="grid gap-6 lg:grid-cols-2">
@@ -69,6 +71,10 @@ export function PositionDetailPage() {
         )}
       </div>
       {modal === "edit" && <PositionFormModal position={p} onClose={() => setModal(null)} />}
+      {modal === "delete" && (
+        <DeletePositionModal position={{ id: p.id, title: p.title, holderCount: p.holders.length }} onClose={() => setModal(null)}
+                             onDeleted={() => navigate("/app/org", { replace: true })} />
+      )}
       {(modal === "archive" || modal === "restore") && (
         <ReasonModal title={`${modal === "archive" ? "Archive" : "Restore"} ${p.title}`}
                      submitLabel={modal === "archive" ? "Archive" : "Restore"} danger={modal === "archive"}
