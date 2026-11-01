@@ -5,7 +5,8 @@ from app.auth.deps import require_in_service
 from app.core.db import get_db
 from app.core.errors import not_found
 from app.scores import service
-from app.scores.schemas import (EntryIn, LeaderboardRow, PersonScoresOut, RoundIn, RoundOut, ToScoreOut)
+from app.scores.schemas import (DeleteRoundIn, EntryIn, LeaderboardRow, PersonScoresOut, ResetOut, RoundIn, RoundOut,
+                                ToScoreOut)
 from app.users.models import User
 
 router = APIRouter(prefix="/api/scores", tags=["scores"])
@@ -38,6 +39,18 @@ def close_round(round_id: int, actor: User = Depends(require_in_service("points.
                 db: Session = Depends(get_db)):
     service.close_round(db, actor, round_id)
     return next(r for r in service.rounds(db) if r["id"] == round_id)
+
+
+@router.post("/rounds/{round_id}/delete", status_code=204)
+def delete_round(round_id: int, body: DeleteRoundIn, actor: User = Depends(require_in_service("points.approve")),
+                 db: Session = Depends(get_db)):
+    service.delete_round(db, actor, round_id, body.reason, body.confirm)
+
+
+@router.post("/reset", response_model=ResetOut)
+def reset(body: DeleteRoundIn, actor: User = Depends(require_in_service("points.approve")),
+          db: Session = Depends(get_db)):
+    return {"rounds_deleted": service.reset_scores(db, actor, body.reason, body.confirm)}
 
 
 @router.get("/to-score", response_model=ToScoreOut | None)

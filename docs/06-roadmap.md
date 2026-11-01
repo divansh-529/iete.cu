@@ -113,7 +113,7 @@ gantt
 > - Joint Secretary: Secretary 7, Vice Chair 7, Chairperson 6
 > - Vice Chairperson: Secretary 10, Chairperson 10 · Secretary: Vice Chair 10, Chairperson 10
 >
-> Scores stay private while a round is open (the Chairperson sees all); closing it publishes every card to the whole team. Totals add up across rounds (20, 40, …) and feed promotion and demotion decisions, which the Chairperson makes in Organisation. The per-event evaluations, evaluator map and ledger below are not built.
+> Scores stay private while a round is open (the Chairperson sees all); closing it publishes every card to the whole team. Totals add up across rounds (20, 40, …) and feed promotion and demotion decisions, which the Chairperson makes in Organisation. The Chairperson can delete one round or reset all scores to start again from zero (migration `0011`); the rows stay marked `deleted`, and the audit log records the reason. The per-event evaluations, evaluator map and ledger below are not built.
 - Migrations: `evaluator_map`, `evaluations`, `point_submissions`, `point_decisions`, `points_ledger`.
 - Evaluator map editor. Opening evaluations for an event. The evaluator inbox. Submitting with a score, maximum, remarks and evidence.
 - Chairperson review screen showing every submission per evaluatee, the combined total (using the configured mode), and approve, adjust, reject or return.

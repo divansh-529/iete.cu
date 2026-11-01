@@ -9,7 +9,7 @@ from app.core.db import Base
 
 # proposed: recruited by a lead, waiting for approval (cannot sign in). rejected: the proposal was
 # turned down; the row stays so the decision remains on record.
-USER_STATUSES = ("proposed", "rejected", "invited", "active", "suspended", "deactivated")
+USER_STATUSES = ("proposed", "rejected", "invited", "active", "suspended", "deactivated", "deleted")
 USER_TYPES = ("team", "participant")
 
 
@@ -18,12 +18,13 @@ class User(Base):
     __table_args__ = (
         CheckConstraint(f"user_type IN {USER_TYPES}", name="users_user_type_check"),
         CheckConstraint(f"status IN {USER_STATUSES}", name="users_status_check"),
+        Index("users_email_unique", "email", unique=True, postgresql_where=text("status <> 'deleted'")),
         Index("one_super_admin", text("(true)"), unique=True,
               postgresql_where=text("is_super_admin")),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
-    email: Mapped[str] = mapped_column(CITEXT, unique=True)
+    email: Mapped[str] = mapped_column(CITEXT)     # unique among accounts that still exist
     full_name: Mapped[str] = mapped_column(Text)
     password_hash: Mapped[str | None] = mapped_column(Text)
     user_type: Mapped[str] = mapped_column(Text)

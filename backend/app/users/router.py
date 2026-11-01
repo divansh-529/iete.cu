@@ -8,8 +8,8 @@ from app.core.config import settings
 from app.core.db import get_db
 from app.users import service
 from app.users.models import User
-from app.users.schemas import (InviteOut, ResetPasswordIn, StatusChangeIn, UserCreateIn,
-                               UserCreateOut, UserOut, UserPage, UserUpdateIn)
+from app.users.schemas import (DeleteUserIn, InviteOut, ResetPasswordIn, StatusChangeIn, UserCreateIn,
+                               UserCreateOut, UserDeletedOut, UserOut, UserPage, UserUpdateIn)
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -57,6 +57,12 @@ def reissue_invite(user_id: int, actor: User = Depends(require("users.create")),
 
 
 # Declared last so the specific /reset-password and /invite routes match first.
+@router.post("/{user_id}/delete", response_model=UserDeletedOut)
+def delete_user(user_id: int, body: DeleteUserIn, actor: User = Depends(require("users.suspend")),
+                db: Session = Depends(get_db)):
+    return service.delete_user(db, actor, user_id, body.reason, body.confirm_email)
+
+
 @router.post("/{user_id}/{action}", response_model=UserOut)
 def change_status(user_id: int, action: Literal["suspend", "reactivate", "deactivate"],
                   body: StatusChangeIn, actor: User = Depends(require("users.suspend")),

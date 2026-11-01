@@ -46,7 +46,7 @@ def create_superadmin(email: str, name: str, password: str | None) -> None:
         sync_catalogue(db)
         if db.scalar(select(User).where(User.is_super_admin)):
             sys.exit("A super admin already exists. Transfer it from inside the app instead.")
-        if db.scalar(select(User).where(User.email == email)):
+        if db.scalar(select(User).where(User.email == email, User.status != "deleted")):
             sys.exit(f"An account with email {email} already exists.")
         if password is None:
             password = getpass.getpass("Password: ")

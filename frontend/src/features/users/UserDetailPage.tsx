@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent, type ReactNode } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { api, errorMessage } from "../../api/client";
 import type { User, UserOrg } from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
@@ -64,7 +64,7 @@ export function UserDetailPage() {
 function AccountCard({ user, isSelf }: { user: User; isSelf: boolean }) {
   const { can, me } = useAuth();
   const qc = useQueryClient();
-  const [action, setAction] = useState<null | "suspend" | "reactivate" | "deactivate" | "reset" | "invite">(null);
+  const [action, setAction] = useState<null | "suspend" | "reactivate" | "deactivate" | "reset" | "invite" | "delete">(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const protectedTarget = isSelf || (user.is_super_admin && !me?.all_permissions);
   const refresh = () => {
@@ -105,6 +105,9 @@ function AccountCard({ user, isSelf }: { user: User; isSelf: boolean }) {
           {can("users.suspend") && user.status !== "deactivated" && (
             <Button variant="danger" onClick={() => setAction("deactivate")}>Deactivate</Button>
           )}
+          {me?.user.is_super_admin && (
+            <Button variant="danger" onClick={() => setAction("delete")}>Delete account</Button>
+          )}
         </div>
       )}
       {inviteUrl && (
@@ -116,8 +119,60 @@ function AccountCard({ user, isSelf }: { user: User; isSelf: boolean }) {
       {(action === "suspend" || action === "reactivate" || action === "deactivate") && (
         <StatusModal user={user} action={action} onClose={() => setAction(null)} onDone={refresh} />
       )}
+      {action === "delete" && <DeleteAccountModal user={user} onClose={() => setAction(null)} />}
       {action === "reset" && <ResetPasswordModal user={user} onClose={() => setAction(null)} onDone={refresh} />}
     </Card>
+  );
+}
+
+/** Chairperson only. */
+function DeleteAccountModal({ user, onClose }: { user: User; onClose: () => void }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [reason, setReason] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/users/${user.id}/delete`, { method: "POST", body: { reason, confirm_email: confirm } });
+      qc.invalidateQueries();
+      navigate("/app/users", { replace: true });
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={`Delete ${user.full_name}`} open onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        {error && <Alert>{error}</Alert>}
+        <Alert tone="amber">
+          <p className="font-medium">This happens straight away and can't be undone:</p>
+          <ul className="mt-1 list-disc pl-5">
+            <li>They are signed out and can't sign in again.</li>
+            <li>They lose their positions, departments, access and open tasks.</li>
+            <li>Their scores leave the standings.</li>
+          </ul>
+          <p className="mt-2">Past events, tasks and the audit log still show their name. Events they run still list them as owner, and you can keep managing those events.</p>
+        </Alert>
+        <Field label="Reason (recorded in the audit log)">
+          <Input required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
+        </Field>
+        <Field label={`Type “${user.email}” to confirm`}>
+          <Input required value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="off" />
+        </Field>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="danger" disabled={busy}>{busy ? "Deleting…" : "Delete permanently"}</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

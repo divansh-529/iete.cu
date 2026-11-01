@@ -21,7 +21,7 @@ SLOTS = ("lead", "joint_secretary", "secretary", "vice_chair", "chairperson")
 class ScoreRound(Base):
     __tablename__ = "score_rounds"
     __table_args__ = (
-        CheckConstraint("status IN ('open', 'closed')", name="score_rounds_status_check"),
+        CheckConstraint("status IN ('open', 'closed', 'deleted')", name="score_rounds_status_check"),
         Index("score_rounds_one_open", text("(true)"), unique=True, postgresql_where=text("status = 'open'")),
     )
 

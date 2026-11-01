@@ -39,6 +39,19 @@ class UserUpdateIn(BaseModel):
     full_name: str | None = Field(default=None, min_length=2, max_length=120)
 
 
+class DeleteUserIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+    confirm_email: str = Field(max_length=320)     # must match the account's email
+
+
+class UserDeletedOut(BaseModel):
+    positions_ended: int
+    memberships_ended: int
+    grants_revoked: int
+    tasks_unassigned: int
+    events_still_owned: int
+
+
 class StatusChangeIn(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
 

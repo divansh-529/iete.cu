@@ -37,7 +37,7 @@ def propose(db: Session, actor: User, dept_id: int, body: ProposeMemberIn) -> Me
             raise AppError(422, "VALIDATION_ERROR", f"Choose an active position in {dept.name}.")
         org.ensure_can_staff(db, actor, pos)
 
-    user = db.scalar(select(User).where(User.email == body.email))
+    user = db.scalar(select(User).where(User.email == body.email, User.status != "deleted"))
     if user is not None and user.status == "proposed":
         raise AppError(409, "ALREADY_PROPOSED", f"{user.full_name} is already waiting for approval.")
     if user is not None and user.status != "rejected":

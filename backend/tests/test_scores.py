@@ -3,6 +3,7 @@ from datetime import date
 
 import pytest
 
+from app.audit.models import AuditEvent
 from app.org.models import Position, PositionAssignment
 from tests.conftest import make_user
 from tests.orgsetup import build_org, login, notifications
@@ -95,3 +96,55 @@ def test_joint_secretary_card_and_lead_scoring(db, make_client, org, chair):
     mine = _cards(js_c)
     assert list(mine) == ["opslead@ietecu.in"]                    # the Joint Secretary scores Leads only
     assert _score(js_c, mine["opslead@ietecu.in"], "joint_secretary", 5).status_code == 204
+
+
+def _published_round(chair, vc, title):
+    rnd = chair.post("/api/scores/rounds", json={"title": title}).json()
+    card = _cards(vc)["opsmember@ietecu.in"]
+    assert _score(vc, card, "vice_chair", 4).status_code == 204
+    assert chair.post(f"/api/scores/rounds/{rnd['id']}/close").status_code == 200
+    return rnd
+
+
+def test_chairperson_deletes_a_round_and_totals_drop(make_client, org, db):
+    chair, vc = login(make_client, org.chair), login(make_client, org.vc)
+    first, second = _published_round(chair, vc, "October"), _published_round(chair, vc, "November")
+    row = chair.get("/api/scores/leaderboard").json()[0]
+    assert float(row["total"]) == 8 and float(row["max_total"]) == 40
+
+    body = {"reason": "Entered by mistake", "confirm": "October"}
+    assert vc.post(f"/api/scores/rounds/{first['id']}/delete", json=body).status_code == 403
+    r = chair.post(f"/api/scores/rounds/{first['id']}/delete", json={**body, "confirm": "Wrong"})
+    assert r.json()["error"]["code"] == "CONFIRMATION_MISMATCH"
+    assert chair.post(f"/api/scores/rounds/{first['id']}/delete", json=body).status_code == 204
+
+    row = chair.get("/api/scores/leaderboard").json()[0]
+    assert float(row["total"]) == 4 and float(row["max_total"]) == 20
+    assert [r["id"] for r in chair.get("/api/scores/rounds").json()] == [second["id"]]
+    assert chair.post(f"/api/scores/rounds/{first['id']}/delete", json=body).status_code == 404
+    assert db.query(AuditEvent).filter_by(action="score.round_delete", entity_id=first["id"]).count() == 1
+
+
+def test_chairperson_resets_all_scores_to_start_again(make_client, org):
+    chair, vc = login(make_client, org.chair), login(make_client, org.vc)
+    _published_round(chair, vc, "October")
+    still_open = chair.post("/api/scores/rounds", json={"title": "November"}).json()
+    card = _cards(vc)["opsmember@ietecu.in"]
+
+    assert vc.post("/api/scores/reset", json={"reason": "No way", "confirm": "RESET"}).status_code == 403
+    r = chair.post("/api/scores/reset", json={"reason": "New term", "confirm": "reset"})
+    assert r.json()["error"]["code"] == "CONFIRMATION_MISMATCH"
+    r = chair.post("/api/scores/reset", json={"reason": "New term", "confirm": "RESET"})
+    assert r.status_code == 200 and r.json() == {"rounds_deleted": 2}
+
+    assert chair.get("/api/scores/leaderboard").json() == []
+    assert chair.get("/api/scores/rounds").json() == []
+    assert chair.get("/api/scores/to-score").json() is None
+    assert chair.get(f"/api/scores/people/{org.ops_member.id}").json()["total"] in (0, "0", "0.0")
+    assert _score(vc, card, "vice_chair", 5).status_code == 409             # the open round is gone too
+    assert chair.post(f"/api/scores/rounds/{still_open['id']}/close").status_code == 404
+
+    # A new round starts from zero.
+    _published_round(chair, vc, "December")
+    row = chair.get("/api/scores/leaderboard").json()[0]
+    assert float(row["total"]) == 4 and float(row["max_total"]) == 20

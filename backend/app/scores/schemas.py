@@ -11,6 +11,15 @@ class RoundIn(BaseModel):
     title: str = Field(min_length=3, max_length=80)          # e.g. "November 2026"
 
 
+class DeleteRoundIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+    confirm: str = Field(max_length=80)                      # the round's title, or RESET for all rounds
+
+
+class ResetOut(BaseModel):
+    rounds_deleted: int
+
+
 class EntryIn(BaseModel):
     points: Decimal = Field(ge=0, le=10, multiple_of=Decimal("0.5"))
     remarks: str | None = Field(default=None, max_length=500)

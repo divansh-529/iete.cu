@@ -1,7 +1,7 @@
 from datetime import timedelta
 from html import escape
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -23,7 +23,7 @@ def _snapshot(user: User) -> dict:
 
 def get_user(db: Session, user_id: int) -> User:
     user = db.get(User, user_id)
-    if user is None:
+    if user is None or user.status == "deleted":
         raise not_found("User")
     return user
 
@@ -40,7 +40,7 @@ def _guard_target(actor: User, target: User, allow_self: bool = False) -> None:
 
 def list_users(db: Session, q: str | None, status: str | None, user_type: str | None,
                offset: int, limit: int) -> tuple[list[User], int]:
-    stmt = select(User)
+    stmt = select(User).where(User.status != "deleted")
     if q:
         like = f"%{q}%"
         stmt = stmt.where(or_(User.email.ilike(like), User.full_name.ilike(like)))
@@ -153,6 +153,82 @@ def change_status(db: Session, actor: User, user_id: int, action: str, reason: s
                  after={**_snapshot(user), "reason": reason})
     db.commit()
     return user
+
+
+def delete_user(db: Session, actor: User, user_id: int, reason: str, confirm_email: str) -> dict:
+    """The Chairperson removes an account for good. The person can no longer sign in and loses their
+    positions, departments, access and open work. The row stays as 'deleted' so past events, tasks and
+    the audit log still name them, and their email and University ID can be used again."""
+    from app.events.models import Event, EventTeamMember
+    from app.members.models import MemberProposal
+    from app.org.models import DepartmentMembership, MemberProfile, PositionAssignment
+    from app.org.service import _close_assignment
+    from app.permissions import engine
+    from app.permissions.models import Grant, PermissionAudit
+    from app.scores.models import ScoreCard, ScoreEntry, ScoreRound
+    from app.tasks.models import Task, TaskAssignee
+
+    if not actor.is_super_admin:
+        raise forbidden("Only the Chairperson can delete an account.")
+    user = get_user(db, user_id)
+    if user.is_super_admin or user.id == actor.id:
+        raise forbidden("The Chairperson's account can't be deleted.")
+    if confirm_email.strip().lower() != user.email.lower():
+        raise AppError(422, "CONFIRMATION_MISMATCH", f"Type the account's email, “{user.email}”, to confirm.")
+    now, today = utcnow(), utcnow().date()
+    before = _snapshot(user)
+
+    assignments = db.scalars(select(PositionAssignment).where(PositionAssignment.user_id == user.id,
+                                                              PositionAssignment.valid_to.is_(None))).all()
+    for pa in assignments:
+        _close_assignment(db, actor, pa, max(today, pa.valid_from), "removed", "Account deleted")
+    memberships = db.scalars(select(DepartmentMembership).where(DepartmentMembership.user_id == user.id,
+                                                                DepartmentMembership.valid_to.is_(None))).all()
+    for m in memberships:
+        m.valid_to, m.end_reason, m.ended_by = max(today, m.valid_from), "Account deleted", actor.id
+    grants = db.scalars(select(Grant).where(Grant.revoked_at.is_(None), Grant.subject_type == "user",
+                                            Grant.subject_id == user.id)).all()
+    for g in grants:
+        g.revoked_at, g.revoked_by = now, actor.id
+        db.add(PermissionAudit(actor_id=actor.id, action="revoke", subject_type=g.subject_type,
+                               subject_id=g.subject_id, permission_code=g.permission_code, role_id=g.role_id,
+                               scope_type=g.scope_type, scope_id=g.scope_id, old_value={"grant_id": g.id},
+                               reason=f"Account deleted: {reason}"))
+    # Open work goes back to whoever runs it; finished work keeps their name.
+    finished = ("completed", "rejected")
+    unassigned = db.scalars(select(TaskAssignee).join(Task, Task.id == TaskAssignee.task_id).where(
+        TaskAssignee.user_id == user.id, TaskAssignee.unassigned_at.is_(None), Task.status.not_in(finished))).all()
+    for a in unassigned:
+        a.unassigned_at = now
+    for task in db.scalars(select(Task).where(Task.reviewer_id == user.id, Task.status.not_in(finished))):
+        task.reviewer_id = None
+    for t in db.scalars(select(EventTeamMember).where(EventTeamMember.user_id == user.id,
+                                                      EventTeamMember.removed_at.is_(None))):
+        t.removed_at, t.removed_by = now, actor.id
+    for p in db.scalars(select(MemberProposal).where(MemberProposal.user_id == user.id, MemberProposal.status == "pending")):
+        p.status, p.decided_by, p.decided_at, p.decision_remarks = "rejected", actor.id, now, "Account deleted"
+    # A round still being scored no longer expects a card for them.
+    open_cards = list(db.scalars(select(ScoreCard.id).join(ScoreRound, ScoreRound.id == ScoreCard.round_id).where(
+        ScoreCard.user_id == user.id, ScoreRound.status == "open")))
+    if open_cards:
+        db.execute(delete(ScoreEntry).where(ScoreEntry.card_id.in_(open_cards)))
+        db.execute(delete(ScoreCard).where(ScoreCard.id.in_(open_cards)))
+    profile = db.get(MemberProfile, user.id)
+    uid = profile.uid if profile else None
+    if profile:
+        profile.uid = None
+
+    revoke_sessions(db, user.id)
+    user.status = "deleted"
+    summary = {"positions_ended": len(assignments), "memberships_ended": len(memberships), "grants_revoked": len(grants),
+               "tasks_unassigned": len(unassigned),
+               "events_still_owned": db.scalar(select(func.count()).select_from(Event).where(
+                   Event.owner_id == user.id, Event.status.not_in(("completed", "cancelled", "archived")))) or 0}
+    audit.record(db, actor.id, "user.delete", "user", user.id, before={**before, "uid": uid},
+                 after={"status": "deleted", "reason": reason, **summary})
+    engine.clear_cache(db)
+    db.commit()
+    return summary
 
 
 def reset_password(db: Session, actor: User, user_id: int, temp_password: str) -> User:

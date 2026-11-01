@@ -71,7 +71,7 @@ def _can_fill(user: User, positions: list[Position], card: ScoreCard, slot: str)
 
 def _require_chair(user: User) -> None:
     if not user.is_super_admin:
-        raise forbidden("Only the Chairperson opens and closes scoring rounds.")
+        raise forbidden("Only the Chairperson manages scoring rounds.")
 
 
 # ---------------------------------------------------------------- rounds
@@ -120,7 +120,7 @@ class _Stub:
 def close_round(db: Session, actor: User, round_id: int) -> ScoreRound:
     _require_chair(actor)
     rnd = db.get(ScoreRound, round_id)
-    if rnd is None:
+    if rnd is None or rnd.status == "deleted":
         raise not_found("Scoring round")
     if rnd.status != "open":
         raise AppError(409, "INVALID_STATE", "This round is already closed.")
@@ -130,6 +130,38 @@ def close_round(db: Session, actor: User, round_id: int) -> ScoreRound:
     notify(db, people, "score.published", {"round_id": rnd.id, "title": rnd.title}, actor.id)
     db.commit()
     return rnd
+
+
+def _delete_rounds(db: Session, actor: User, rows: list[ScoreRound], reason: str) -> None:
+    """Takes rounds off every screen, so their scores stop counting. The rows stay, marked deleted,
+    so the audit log's record of what was removed can still be checked."""
+    progress = _progress(db, [r.id for r in rows])
+    for r in rows:
+        before = {"title": r.title, "status": r.status, "cards": progress[r.id][0], "entries_given": progress[r.id][1]}
+        r.status = "deleted"
+        audit.record(db, actor.id, "score.round_delete", "score_round", r.id, before=before, after={"reason": reason})
+
+
+def delete_round(db: Session, actor: User, round_id: int, reason: str, confirm: str) -> None:
+    _require_chair(actor)
+    rnd = db.get(ScoreRound, round_id)
+    if rnd is None or rnd.status == "deleted":
+        raise not_found("Scoring round")
+    if confirm.strip().lower() != rnd.title.lower():
+        raise AppError(422, "CONFIRMATION_MISMATCH", f"Type the round's name, “{rnd.title}”, to confirm.")
+    _delete_rounds(db, actor, [rnd], reason)
+    db.commit()
+
+
+def reset_scores(db: Session, actor: User, reason: str, confirm: str) -> int:
+    """Every round goes, including one still open, so everyone starts again from zero."""
+    _require_chair(actor)
+    if confirm.strip() != "RESET":
+        raise AppError(422, "CONFIRMATION_MISMATCH", "Type RESET to confirm.")
+    rows = list(db.scalars(select(ScoreRound).where(ScoreRound.status != "deleted")))
+    _delete_rounds(db, actor, rows, reason)
+    db.commit()
+    return len(rows)
 
 
 def _progress(db: Session, round_ids: list[int]) -> dict[int, tuple[int, int, int]]:
@@ -148,7 +180,8 @@ def _progress(db: Session, round_ids: list[int]) -> dict[int, tuple[int, int, in
 
 
 def rounds(db: Session) -> list[dict]:
-    rows = list(db.scalars(select(ScoreRound).order_by(ScoreRound.opened_at.desc(), ScoreRound.id.desc())))
+    rows = list(db.scalars(select(ScoreRound).where(ScoreRound.status != "deleted")
+                           .order_by(ScoreRound.opened_at.desc(), ScoreRound.id.desc())))
     progress = _progress(db, [r.id for r in rows])
     return [{"id": r.id, "title": r.title, "status": r.status, "opened_at": r.opened_at, "closed_at": r.closed_at,
              "cards": progress[r.id][0], "entries_given": progress[r.id][1], "entries_expected": progress[r.id][2]}
@@ -231,7 +264,8 @@ def save_entry(db: Session, user: User, card_id: int, slot: str, body: EntryIn) 
 
 def _published(db: Session, user_id: int | None = None):
     stmt = (select(ScoreCard, ScoreRound).join(ScoreRound, ScoreRound.id == ScoreCard.round_id)
-            .where(ScoreRound.status == "closed"))
+            .join(User, User.id == ScoreCard.user_id)
+            .where(ScoreRound.status == "closed", User.status != "deleted"))
     if user_id is not None:
         stmt = stmt.where(ScoreCard.user_id == user_id)
     return db.execute(stmt.order_by(ScoreRound.closed_at.desc(), ScoreRound.id.desc())).all()
@@ -258,7 +292,7 @@ def leaderboard(db: Session) -> list[dict]:
 
 def person(db: Session, user_id: int) -> dict:
     user = db.get(User, user_id)
-    if user is None or user.user_type != "team":
+    if user is None or user.user_type != "team" or user.status == "deleted":
         raise not_found("Person")
     rows = _published(db, user_id)
     entries = defaultdict(list)

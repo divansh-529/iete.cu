@@ -38,7 +38,7 @@ def login(db: Session, email: str, password: str, ip: str | None,
     if ip_failures >= settings.login_ip_max_failures:
         raise AppError(429, "TOO_MANY_ATTEMPTS", "Too many failed logins. Try again later.")
 
-    user = db.scalar(select(User).where(User.email == email))
+    user = db.scalar(select(User).where(User.email == email, User.status != "deleted"))
     if user and user.locked_until and user.locked_until > now:
         db.add(LoginAttempt(email=email, ip=ip, success=False))
         db.commit()

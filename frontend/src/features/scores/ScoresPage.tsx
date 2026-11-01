@@ -6,6 +6,7 @@ import type { LeaderboardRow, ScoreCard, ScoreRound, ScoreSlot, ToScore } from "
 import { useAuth } from "../../auth/AuthContext";
 import { Alert, Badge, Button, Card, cx, Empty, Field, formatDate, Input, Modal, PageHeader, Spinner,
   Tabs } from "../../components/ui";
+import { FormModal } from "../org/modals";
 
 const TABS = [["board", "Standings"], ["score", "Score now"], ["rounds", "Rounds"]] as const;
 type Tab = (typeof TABS)[number][0];
@@ -31,20 +32,50 @@ export function ScoresPage() {
         </Alert></div>
       )}
       <Tabs tabs={TABS} value={tab} onChange={(t) => setParams({ tab: t })} />
-      {tab === "board" && <Standings />}
+      {tab === "board" && <Standings chair={chair} />}
       {tab === "score" && <ScoreNow data={open.data ?? null} loading={open.isLoading} chair={chair} />}
       {tab === "rounds" && <Rounds chair={chair} />}
     </>
   );
 }
 
-function Standings() {
+/** Chairperson only. Asks for a reason and a typed word, because this changes everyone's totals. */
+function DeleteScoresModal({ title, word, warning, submitLabel, path, onClose }: {
+  title: string; word: string; warning: string; submitLabel: string; path: string; onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [reason, setReason] = useState("");
+  const [confirm, setConfirm] = useState("");
+  return (
+    <FormModal title={title} submitLabel={submitLabel} danger onClose={onClose}
+               onSubmit={async () => {
+                 await api(path, { method: "POST", body: { reason, confirm } });
+                 qc.invalidateQueries({ queryKey: ["scores"] });
+               }}>
+      <Alert tone="amber">{warning}</Alert>
+      <Field label="Reason (recorded in the audit log)">
+        <Input required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
+      </Field>
+      <Field label={`Type “${word}” to confirm`}>
+        <Input required value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="off" />
+      </Field>
+    </FormModal>
+  );
+}
+
+function Standings({ chair }: { chair: boolean }) {
+  const [resetting, setResetting] = useState(false);
   const board = useQuery({ queryKey: ["scores", "board"], queryFn: () => api<LeaderboardRow[]>("/scores/leaderboard") });
   if (board.isLoading) return <Spinner />;
   if (board.error) return <Alert>{errorMessage(board.error)}</Alert>;
   if (!board.data?.length) return <Card><Empty>No results yet. They appear here when the Chairperson closes a scoring round.</Empty></Card>;
   return (
-    <Card>
+    <Card title="Standings" actions={chair && <Button variant="danger" onClick={() => setResetting(true)}>Reset all scores</Button>}>
+      {resetting && (
+        <DeleteScoresModal title="Reset all scores" word="RESET" submitLabel="Reset all scores" path="/scores/reset"
+                           warning="Every scoring round is deleted, including one still open. Everyone's total goes back to 0 and the screens won't show the old scores again."
+                           onClose={() => setResetting(false)} />
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
@@ -207,6 +238,7 @@ function Rounds({ chair }: { chair: boolean }) {
   const qc = useQueryClient();
   const rounds = useQuery({ queryKey: ["scores", "rounds"], queryFn: () => api<ScoreRound[]>("/scores/rounds") });
   const [title, setTitle] = useState(new Date().toLocaleString("en-IN", { month: "long", year: "numeric" }));
+  const [deleting, setDeleting] = useState<ScoreRound | null>(null);
   const [error, setError] = useState<string | null>(null);
   const anyOpen = rounds.data?.some((r) => r.status === "open");
   return (
@@ -220,12 +252,20 @@ function Rounds({ chair }: { chair: boolean }) {
                 <span className="flex items-center gap-2 text-xs text-slate-500">
                   {r.entries_given}/{r.entries_expected} scores · {r.cards} people
                   <Badge tone={r.status === "open" ? "amber" : "green"}>{r.status === "open" ? "Open" : "Published"}</Badge>
+                  {chair && <button onClick={() => setDeleting(r)} aria-label={`Delete ${r.title}`}
+                                    className="rounded-md px-2 py-1 font-medium text-red-700 hover:bg-red-50">Delete</button>}
                 </span>
               </li>
             ))}
           </ul>
         )}
       </Card>
+      {deleting && (
+        <DeleteScoresModal title={`Delete ${deleting.title}`} word={deleting.title} submitLabel="Delete round"
+                           path={`/scores/rounds/${deleting.id}/delete`}
+                           warning="This round's scores are removed from everyone's totals and the screens won't show them again."
+                           onClose={() => setDeleting(null)} />
+      )}
       {chair && (
         <Card title="Open a new round">
           {anyOpen ? <p className="text-sm text-slate-500">Close the open round first (Score now tab).</p> : (
