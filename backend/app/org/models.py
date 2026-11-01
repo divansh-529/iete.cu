@@ -125,6 +125,8 @@ class MemberProfile(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     uid: Mapped[str | None] = mapped_column(Text, unique=True)        # university ID
     iete_membership_id: Mapped[str | None] = mapped_column(Text)      # only paid IETE members have one
+    official_email: Mapped[str | None] = mapped_column(Text)
+    block: Mapped[str | None] = mapped_column(Text)                   # current block, e.g. C2
     phone: Mapped[str | None] = mapped_column(Text)
     branch: Mapped[str | None] = mapped_column(Text)
     year_of_study: Mapped[int | None] = mapped_column(SmallInteger)

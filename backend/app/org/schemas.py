@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 StartReason = Literal["appointed", "promoted", "transferred", "reinstated"]
 EndReason = Literal["promoted", "transferred", "resigned", "removed", "term_ended"]
@@ -136,6 +136,8 @@ class MembershipOut(BaseModel):
 class ProfileIn(BaseModel):
     uid: str | None = Field(default=None, max_length=40)
     iete_membership_id: str | None = Field(default=None, max_length=40)
+    official_email: EmailStr | None = None
+    block: str | None = Field(default=None, max_length=20)
     phone: str | None = Field(default=None, max_length=20)
     branch: str | None = Field(default=None, max_length=80)
     year_of_study: int | None = Field(default=None, ge=1, le=6)
@@ -147,6 +149,8 @@ class ProfileIn(BaseModel):
 class SelfProfileIn(BaseModel):
     uid: str | None = Field(default=None, max_length=40)
     iete_membership_id: str | None = Field(default=None, max_length=40)
+    official_email: EmailStr | None = None
+    block: str | None = Field(default=None, max_length=20)
     phone: str | None = Field(default=None, max_length=20)
     branch: str | None = Field(default=None, max_length=80)
     year_of_study: int | None = Field(default=None, ge=1, le=6)
@@ -157,6 +161,8 @@ class ProfileOut(BaseModel):
 
     uid: str | None = None
     iete_membership_id: str | None = None
+    official_email: str | None = None
+    block: str | None = None
     phone: str | None = None
     branch: str | None = None
     year_of_study: int | None = None

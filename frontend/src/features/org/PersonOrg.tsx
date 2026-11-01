@@ -71,6 +71,8 @@ export function ProfileCard({ userId, profile, editable, self = false }: {
         <Row label="Status"><Badge tone={LIFECYCLE_TONE[profile.lifecycle_status]}>{profile.lifecycle_status}</Badge></Row>
         <Row label="University ID">{profile.uid ?? "—"}</Row>
         <Row label="IETE membership ID">{profile.iete_membership_id ?? "—"}</Row>
+        <Row label="Official email">{profile.official_email ?? "—"}</Row>
+        <Row label="Current block">{profile.block ?? "—"}</Row>
         <Row label="Branch">{profile.branch ?? "—"}</Row>
         <Row label="Year">{profile.year_of_study ?? "—"}</Row>
         <Row label="Phone">{profile.phone ?? "—"}</Row>
@@ -94,7 +96,8 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 function ProfileModal({ userId, profile, self, onClose }: { userId: number; profile: Profile; self: boolean; onClose: () => void }) {
   const qc = useQueryClient();
   const [form, setForm] = useState({
-    uid: profile.uid ?? "", iete_membership_id: profile.iete_membership_id ?? "", phone: profile.phone ?? "", branch: profile.branch ?? "",
+    uid: profile.uid ?? "", iete_membership_id: profile.iete_membership_id ?? "", official_email: profile.official_email ?? "",
+    block: profile.block ?? "", phone: profile.phone ?? "", branch: profile.branch ?? "",
     year_of_study: profile.year_of_study ? String(profile.year_of_study) : "", joined_on: profile.joined_on ?? "",
     lifecycle_status: profile.lifecycle_status, responsibilities: profile.responsibilities ?? "",
   });
@@ -104,7 +107,8 @@ function ProfileModal({ userId, profile, self, onClose }: { userId: number; prof
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const common = { uid: orNull(form.uid), iete_membership_id: orNull(form.iete_membership_id), phone: orNull(form.phone), branch: orNull(form.branch),
+    const common = { uid: orNull(form.uid), iete_membership_id: orNull(form.iete_membership_id), official_email: orNull(form.official_email),
+                     block: orNull(form.block), phone: orNull(form.phone), branch: orNull(form.branch),
                      year_of_study: form.year_of_study ? Number(form.year_of_study) : null };
     try {
       if (self) {
@@ -142,6 +146,10 @@ function ProfileModal({ userId, profile, self, onClose }: { userId: number; prof
         <Field label="IETE membership ID" hint="Optional. Only for paid IETE members.">
           <Input value={form.iete_membership_id} onChange={set("iete_membership_id")} />
         </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Official email"><Input type="email" required={self} value={form.official_email} onChange={set("official_email")} /></Field>
+          <Field label="Current block" hint="For example: C2"><Input required={self} maxLength={20} value={form.block} onChange={set("block")} /></Field>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Branch"><Input required={self} value={form.branch} onChange={set("branch")} /></Field>
           <Field label="Year of study">

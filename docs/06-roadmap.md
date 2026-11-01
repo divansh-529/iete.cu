@@ -96,7 +96,7 @@ gantt
 > - An event's owner and team can view and upload in its folders without extra grants. Forum folders (no event) need the permission globally. Nobody reviews their own upload, except the Chairperson.
 > - Deleted documents stay in storage indefinitely: the 90-day purge is not built because the free plan has no scheduler.
 >
-> **Also added:** team members complete their profile (University ID, branch, year, phone, and an optional IETE membership ID) after first sign-in, and the dashboard has a calendar of events and the person's open tasks.
+> **Also added:** team members complete their profile (University ID, official email, current block, branch, year, phone, and an optional IETE membership ID) after first sign-in, and the dashboard has a calendar of events and the person's open tasks.
 - Migrations: `folder_templates`, `folders`, `documents`, `document_versions`, `document_reviews`, `files`.
 - Storage adapter (S3 API with presigned PUT and GET), working against MinIO locally and R2 in production. MIME and size validation. The SHA-256 is computed by the client and verified on commit.
 - Event folders are auto-created from the templates when an event is created.

@@ -273,8 +273,9 @@ def test_profile_must_be_completed_after_first_sign_in(client, chair):
     client.login("chair@ietecu.in")
     assert client.get("/api/auth/me").json()["profile_complete"] is False
     # Saving part of the form does not count, and blanks are stored as empty.
-    r = client.put("/api/me/profile", json={"uid": "22BCS1", "phone": "  ", "branch": "CSE", "year_of_study": 3})
-    assert r.status_code == 200 and r.json()["phone"] is None
+    r = client.put("/api/me/profile", json={"uid": "22BCS1", "phone": "  ", "branch": "CSE", "year_of_study": 3,
+                                            "official_email": "a@cumail.in", "block": " c2 "})
+    assert r.status_code == 200 and r.json()["phone"] is None and r.json()["block"] == "C2"
     assert client.get("/api/auth/me").json()["profile_complete"] is False
     # The IETE membership ID is optional.
     r = client.put("/api/me/profile", json={"phone": "9876543210"})
@@ -283,3 +284,7 @@ def test_profile_must_be_completed_after_first_sign_in(client, chair):
     r = client.put("/api/me/profile", json={"iete_membership_id": "ST-1234"})
     assert r.json()["iete_membership_id"] == "ST-1234"
     assert client.get("/api/auth/me").json()["profile_complete"] is True
+    assert client.put("/api/me/profile", json={"official_email": "not-an-email"}).status_code == 422
+    # Official email and block are required.
+    assert client.put("/api/me/profile", json={"block": ""}).json()["block"] is None
+    assert client.get("/api/auth/me").json()["profile_complete"] is False

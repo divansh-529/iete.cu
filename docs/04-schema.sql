@@ -207,6 +207,8 @@ CREATE TABLE member_profiles (
   user_id          bigint PRIMARY KEY REFERENCES users(id),
   uid              text UNIQUE,                    -- university ID
   iete_membership_id text,                         -- optional: only paid IETE members
+  official_email   text,
+  block            text,                           -- current block, e.g. C2
   phone            text,
   branch           text,
   year_of_study    smallint,

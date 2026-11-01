@@ -26,7 +26,8 @@ export function CompleteProfilePage() {
 
   const saved = org.data.profile;
   const form = {
-    uid: saved.uid ?? "", iete_membership_id: saved.iete_membership_id ?? "", branch: saved.branch ?? "",
+    uid: saved.uid ?? "", iete_membership_id: saved.iete_membership_id ?? "", official_email: saved.official_email ?? "",
+    block: saved.block ?? "", branch: saved.branch ?? "",
     year_of_study: saved.year_of_study ? String(saved.year_of_study) : "", phone: saved.phone ?? "", ...edits,
   };
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setEdits({ ...edits, [key]: e.target.value });
@@ -38,7 +39,8 @@ export function CompleteProfilePage() {
     try {
       await api("/me/profile", {
         method: "PUT",
-        body: { uid: form.uid, iete_membership_id: form.iete_membership_id, branch: form.branch,
+        body: { uid: form.uid, iete_membership_id: form.iete_membership_id || null, official_email: form.official_email,
+                block: form.block, branch: form.branch,
                 year_of_study: Number(form.year_of_study), phone: form.phone },
       });
       qc.invalidateQueries({ queryKey: ["my-org"] });
@@ -61,6 +63,12 @@ export function CompleteProfilePage() {
       <form onSubmit={submit} className="space-y-4">
         {error && <Alert>{error}</Alert>}
         <Field label="University ID"><Input required autoFocus value={form.uid} onChange={set("uid")} /></Field>
+        <Field label="Official email">
+          <Input type="email" required value={form.official_email} onChange={set("official_email")} />
+        </Field>
+        <Field label="Current block" hint="For example: C2">
+          <Input required maxLength={20} value={form.block} onChange={set("block")} />
+        </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Branch"><Input required value={form.branch} onChange={set("branch")} /></Field>
           <Field label="Year of study">

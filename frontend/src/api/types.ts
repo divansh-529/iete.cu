@@ -147,6 +147,8 @@ export interface DepartmentDetail extends Department {
 export interface Profile {
   uid: string | null;
   iete_membership_id: string | null;
+  official_email: string | null;
+  block: string | null;
   phone: string | null;
   branch: string | null;
   year_of_study: number | null;

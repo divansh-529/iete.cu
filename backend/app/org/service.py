@@ -598,12 +598,12 @@ def profile_complete(db: Session, user: User) -> bool:
     if user.user_type != "team":
         return True
     p = db.get(MemberProfile, user.id)
-    return bool(p and p.uid and p.phone and p.branch and p.year_of_study)
+    return bool(p and p.uid and p.official_email and p.block and p.phone and p.branch and p.year_of_study)
 
 
 def _profile_snapshot(p: MemberProfile) -> dict:
     return {k: (v.isoformat() if isinstance(v, date) else v) for k, v in {
-        "uid": p.uid, "iete_membership_id": p.iete_membership_id, "phone": p.phone, "branch": p.branch, "year_of_study": p.year_of_study,
+        "uid": p.uid, "iete_membership_id": p.iete_membership_id, "official_email": p.official_email, "block": p.block, "phone": p.phone, "branch": p.branch, "year_of_study": p.year_of_study,
         "joined_on": p.joined_on, "lifecycle_status": p.lifecycle_status,
         "responsibilities": p.responsibilities}.items()}
 
@@ -623,6 +623,8 @@ def update_profile(db: Session, actor: User, user_id: int, body: ProfileIn | Sel
             continue
         if isinstance(value, str):
             value = value.strip() or None
+            if key == "block" and value:
+                value = value.upper()
         setattr(profile, key, value)
     try:
         db.flush()
