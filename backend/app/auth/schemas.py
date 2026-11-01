@@ -9,7 +9,7 @@ class LoginIn(BaseModel):
 
 
 class ChangePasswordIn(BaseModel):
-    current_password: str
+    current_password: str | None = None   # not needed for the forced first-time change
     new_password: str
 
 

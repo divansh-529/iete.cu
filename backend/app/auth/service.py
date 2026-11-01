@@ -84,10 +84,13 @@ def logout(db: Session, sess: UserSession) -> None:
     db.commit()
 
 
-def change_password(db: Session, user: User, sess: UserSession, current: str, new: str) -> None:
-    if not verify_password(user.password_hash, current):
+def change_password(db: Session, user: User, sess: UserSession, current: str | None, new: str) -> None:
+    """Right after signing in with a first-time password (must_change_password), the person has
+    just proved it, so it isn't asked again. A later, voluntary change still needs the current
+    password, so someone at an unattended signed-in device can't take the account over."""
+    if not user.must_change_password and not verify_password(user.password_hash, current or ""):
         raise AppError(400, "WRONG_PASSWORD", "Current password is incorrect.")
-    if current == new:
+    if verify_password(user.password_hash, new):
         raise AppError(422, "WEAK_PASSWORD", "New password must be different from the current one.")
     validate_new_password(new, user.email)
     user.password_hash = hash_password(new)

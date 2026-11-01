@@ -14,7 +14,7 @@ export function ForcedChangePasswordPage() {
   return (
     <AuthLayout title="Choose a new password"
                 subtitle="You signed in with a temporary password. Set your own password to continue.">
-      <ChangePasswordForm onDone={() => navigate("/app", { replace: true })} />
+      <ChangePasswordForm askCurrent={false} onDone={() => navigate("/app", { replace: true })} />
     </AuthLayout>
   );
 }

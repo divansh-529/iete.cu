@@ -6,7 +6,9 @@ import { Alert, Button, Field, Input } from "../../components/ui";
 
 export const MIN_PASSWORD_LENGTH = 10;
 
-export function ChangePasswordForm({ onDone }: { onDone?: () => void }) {
+/** `askCurrent=false` for the forced first-time change: the person has just signed in with that
+ *  password. Voluntary changes (My account) still ask for it. */
+export function ChangePasswordForm({ onDone, askCurrent = true }: { onDone?: () => void; askCurrent?: boolean }) {
   const { setMe } = useAuth();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -23,7 +25,7 @@ export function ChangePasswordForm({ onDone }: { onDone?: () => void }) {
     setBusy(true);
     try {
       const me = await api<Me>("/auth/change-password", {
-        method: "POST", body: { current_password: current, new_password: next },
+        method: "POST", body: { current_password: askCurrent ? current : null, new_password: next },
       });
       setMe(me);
       setCurrent(""); setNext(""); setConfirm("");
@@ -40,10 +42,12 @@ export function ChangePasswordForm({ onDone }: { onDone?: () => void }) {
     <form onSubmit={submit} className="space-y-4">
       {error && <Alert>{error}</Alert>}
       {success && <Alert tone="green">Password changed. Other devices have been signed out.</Alert>}
-      <Field label="Current password">
-        <Input type="password" autoComplete="current-password" required value={current}
-               onChange={(e) => setCurrent(e.target.value)} />
-      </Field>
+      {askCurrent && (
+        <Field label="Current password">
+          <Input type="password" autoComplete="current-password" required value={current}
+                 onChange={(e) => setCurrent(e.target.value)} />
+        </Field>
+      )}
       <Field label="New password" hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}>
         <Input type="password" autoComplete="new-password" required minLength={MIN_PASSWORD_LENGTH}
                value={next} onChange={(e) => setNext(e.target.value)} />

@@ -8,7 +8,7 @@ All endpoints sit under `/api`, and the request and response bodies are JSON. **
 | POST | `/auth/login` | public | Rate-limited. Sets the session and CSRF cookies. |
 | POST | `/auth/logout` | session | Deletes the session row |
 | GET | `/auth/me` | session | User, positions and effective permissions (UI hints only) |
-| POST | `/auth/change-password` | session | Requires the current password. Clears `must_change_password` and moves `invited` to `active`. |
+| POST | `/auth/change-password` | session | Requires the current password, except for the forced first-time change (the person has just signed in with it). Clears `must_change_password` and moves `invited` to `active`. |
 | POST | `/auth/accept-invite` | public (token) | Sets the first password from an invite link |
 
 While `must_change_password` is true, every other endpoint returns `403 PASSWORD_CHANGE_REQUIRED`.

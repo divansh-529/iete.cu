@@ -130,3 +130,16 @@ def test_welcome_email_is_sent_when_configured(make_client, org, monkeypatch):
     assert body["email_sent"] is True and body["proposal"]["email_sent_at"]
     (to, text), = sent
     assert to == "recruit@gmail.com" and DEFAULT in text and "Operations" in text
+
+
+def test_first_change_needs_no_current_password_but_later_ones_do(make_client, client, chair):
+    client.login("chair@ietecu.in")
+    client.post("/api/users", json={"email": "fresh@gmail.com", "full_name": "Fresh Member"})
+    c = make_client()
+    c.login("fresh@gmail.com", DEFAULT)
+    r = c.post("/api/auth/change-password", json={"new_password": "my-own-password-1"})
+    assert r.status_code == 200 and r.json()["user"]["must_change_password"] is False
+    # From now on, changing it again needs the current password
+    assert c.post("/api/auth/change-password", json={"new_password": "another-password-2"}).status_code == 400
+    assert c.post("/api/auth/change-password", json={"current_password": "my-own-password-1",
+                                                     "new_password": "another-password-2"}).status_code == 200
