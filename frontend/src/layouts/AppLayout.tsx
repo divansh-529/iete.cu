@@ -5,6 +5,7 @@ import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { BrandLogo } from "../components/Brand";
 import { cx, Spinner } from "../components/ui";
+import { NotificationsPanel, useNotifications } from "../features/notifications/NotificationsPanel";
 
 interface NavItem {
   to: string;
@@ -15,6 +16,10 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: "/app", label: "Dashboard", icon: "M3 12 12 4l9 8M5 10v10h5v-6h4v6h5V10" },
+  // Events and Tasks are open to everyone: what each person sees there depends on their access.
+  { to: "/app/events", label: "Events",
+    icon: "M8 3v3m8-3v3M4 9h16M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1m4 7h2v2H9z" },
+  { to: "/app/tasks", label: "Tasks", icon: "M9 11l3 3 8-8M20 12v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h11" },
   { to: "/app/org", label: "Organisation", permission: "org.view",
     icon: "M12 3v5m0 0H6v4m6-4h6v4M4 12h4v4H4zm12 0h4v4h-4zM10 16h4v5h-4zm2-4v4" },
   { to: "/app/users", label: "Team accounts", permission: "users.view",
@@ -44,6 +49,9 @@ export function AppLayout() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const notifications = useNotifications(!!me && !me.user.must_change_password);
+  const unread = notifications.data?.unread ?? 0;
 
   if (loading) return <Spinner />;
   if (!me) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
@@ -63,9 +71,10 @@ export function AppLayout() {
         <div className="h-1 bg-gradient-to-r from-brand-600 via-brand-500 to-brand-700" />
         <div className="flex items-center justify-between gap-2 px-4 py-4">
           <BrandLogo className="w-44 md:w-52" />
-          <button className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 md:hidden"
+          <button className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 md:hidden"
                   onClick={() => setMenuOpen((o) => !o)} aria-label="Toggle menu" aria-expanded={menuOpen}>
             <Icon d={menuOpen ? "M6 6l12 12M18 6 6 18" : "M4 7h16M4 12h16M4 17h16"} />
+            {unread > 0 && !menuOpen && <span className="absolute top-1 right-1 size-2.5 rounded-full bg-red-500" />}
           </button>
         </div>
         <div className={cx("px-5 pb-2 text-[11px] font-semibold tracking-wider text-slate-400 uppercase", !menuOpen && "hidden md:block")}>
@@ -89,6 +98,13 @@ export function AppLayout() {
               )}
             </NavLink>
           ))}
+          <button onClick={() => { setPanelOpen(true); setMenuOpen(false); }}
+                  className="group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900">
+            <Icon d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 0 0-4-5.7V5a2 2 0 1 0-4 0v.3A6 6 0 0 0 6 11v3.2a2 2 0 0 1-.6 1.4L4 17h5m6 0v1a3 3 0 1 1-6 0v-1m6 0H9"
+                  className="text-slate-400 group-hover:text-slate-600" />
+            Notifications
+            {unread > 0 && <span className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-semibold text-white">{unread > 99 ? "99+" : unread}</span>}
+          </button>
         </nav>
         <div className={cx("border-t border-slate-200 p-3", !menuOpen && "hidden md:block")}>
           <div className="flex items-center gap-3 rounded-lg p-2">
@@ -112,6 +128,7 @@ export function AppLayout() {
           <Outlet />
         </div>
       </main>
+      {panelOpen && <NotificationsPanel onClose={() => setPanelOpen(false)} />}
     </div>
   );
 }

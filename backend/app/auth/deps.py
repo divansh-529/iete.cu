@@ -80,3 +80,27 @@ def require_any(permission: str):
 
     dependency.required_permission = permission  # type: ignore[attr-defined]
     return dependency
+
+
+def require_any_of(*permissions: str):
+    """Route dependency: 403 unless the user holds at least one of `permissions` at some scope."""
+
+    def dependency(user: User = Depends(current_user), db: Session = Depends(get_db)) -> User:
+        if not any(has_any(db, user, p) for p in permissions):
+            raise forbidden()
+        return user
+
+    dependency.required_permission = permissions  # type: ignore[attr-defined]
+    return dependency
+
+
+def require_in_service(permission: str):
+    """Route dependency for records where involvement also gives access: an event's owner and
+    team, a task's assignees and reviewer. It only requires a signed-in user; the service must
+    check `permission` at the record's scope, or that involvement, before returning anything."""
+
+    def dependency(user: User = Depends(current_user)) -> User:
+        return user
+
+    dependency.required_permission = permission  # type: ignore[attr-defined]
+    return dependency

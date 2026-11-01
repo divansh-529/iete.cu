@@ -72,7 +72,15 @@ gantt
 - UI: departments page, positions page, member profile with designation history, and an interactive org chart that shows vacant positions (built with an off-the-shelf React tree component or an SVG).
 - **Exit:** the real org chart is entered. Moving a member out of a Lead position immediately removes the Lead's scoped access. Their history still shows the former role.
 
-## Phase 3 — Events & Tasks (≈4 weeks)
+## Phase 3 — Events & Tasks (≈4 weeks) ✅ built
+
+> **Status (2026-11-01):** Phase 3 is implemented (migration `0003`, 64 backend tests, plus a browser walkthrough of every journey). Decisions and differences from the plan below:
+> - **Approval chain (decided with the Chairperson):** Draft → Proposed (Leadership reviews with the new `events.review` permission) → Awaiting approval → the Chairperson approves (`events.approve`). Reviewers and approvers can send an event back with a reason, and nobody reviews or approves an event they own.
+> - **Who proposes events:** every core team member, for their own department (the Member role now includes `events.create`). Department Leads also get `events.edit`.
+> - Event owners run their own event (team, checklist, milestones, tasks) without extra grants. Assignees, reviewers and event owners always see their tasks.
+> - Task evidence is a note and/or a link for now; file uploads arrive with Documents (Phase 4).
+> - There is no background scheduler on the free hosting plan, so "due soon" reminders are created when a person next checks their notifications.
+> - Existing installs run `python -m app.cli sync-defaults` once to pick up the new default permissions and grants.
 - Migrations for events and tasks (sections 3 and 4 of the schema).
 - Event state machine with allowed transitions and the permission each one needs. Every transition writes `event_status_history`.
 - Event workspace UI with tabs: Overview · Team · Tasks · Checklist & Milestones · Documents (Phase 4) · Registrations (Phase 7) · Finance (Phase 6) · Points (Phase 5).

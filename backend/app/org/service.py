@@ -30,6 +30,26 @@ def _person(u: User) -> dict:
     return {"id": u.id, "full_name": u.full_name, "email": u.email}
 
 
+def people_by_id(db: Session, ids) -> dict[int, dict]:
+    """PersonRef dicts for the given user ids (missing ids are skipped)."""
+    wanted = {i for i in ids if i}
+    if not wanted:
+        return {}
+    return {u.id: _person(u) for u in db.scalars(select(User).where(User.id.in_(wanted)))}
+
+
+def department_names(db: Session, ids) -> dict[int, str]:
+    wanted = {i for i in ids if i}
+    if not wanted:
+        return {}
+    return dict(db.execute(select(Department.id, Department.name).where(Department.id.in_(wanted))).all())
+
+
+def active_team_user(db: Session, user_id: int) -> User:
+    """A team account that can be given work (assigned, added to an event team)."""
+    return _active_user(db, user_id)
+
+
 # ---------------------------------------------------------------- lookups
 
 def get_department(db: Session, dept_id: int) -> Department:

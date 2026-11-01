@@ -26,7 +26,7 @@ Positions belong to the org structure ([03-data-model.md](03-data-model.md) §2)
 | Permissions | `permissions.view` S, `permissions.manage` S, `roles.manage` S |
 | Org | `org.view`, `org.manage` (departments, positions), `org.assign` (move or assign members) |
 | Tasks | `tasks.view`, `tasks.create`, `tasks.assign`, `tasks.review`, `tasks.export` |
-| Events | `events.view`, `events.create`, `events.edit`, `events.approve` S, `events.archive` |
+| Events | `events.view`, `events.create`, `events.edit`, `events.review`, `events.approve` S, `events.archive` |
 | Documents | `documents.view`, `documents.upload`, `documents.review`, `documents.delete` S, `documents.manage_folders` |
 | Points | `points.view`, `points.evaluate`, `points.approve` S, `points.adjust` S, `points.leaderboard.view` |
 | Finance | `finance.view` S, `finance.income.record` S, `finance.expense.submit`, `finance.expense.verify` S, `finance.expense.approve` S, `finance.accounts.manage` S, `finance.reconcile` S, `finance.export` S |
@@ -122,9 +122,13 @@ A nightly job marks expired grants with an `expire` audit row, so the history sh
 | Grant | Subject | Scope |
 |---|---|---|
 | Super Admin flag | Chairperson user | — |
-| Role "Leadership" (`org.view`, `events.*` except approve, `tasks.*`, `documents.view/upload/review`, `points.evaluate`, `reports.view`) | Positions: Vice Chair, Secretary, Joint Secretary | global |
-| Role "Department Lead" (`org.view`, `org.assign`, `tasks.*`, `events.view`, `documents.view/upload`) | Each Lead position | that position's department |
-| Role "Member" (`tasks.view`, `events.view`, `documents.view`) | Each department | that department |
+| Role "Leadership" (`org.view`, `events.*` except approve, including `events.review`, `tasks.*`, `documents.view/upload/review`, `points.evaluate`, `reports.view`) | Positions: Vice Chair, Secretary, Joint Secretary | global |
+| Role "Department Lead" (`org.view`, `org.assign`, `tasks.*`, `events.view/create/edit`, `documents.view/upload`) | Each Lead position | that position's department |
+| Role "Member" (`tasks.view`, `events.view`, `events.create`, `documents.view`) | Each department | that department |
+
+`python -m app.cli seed-org` applies these grants on a new install; `python -m app.cli sync-defaults` adds any that are missing on an existing one (it never removes anything).
+
+**Events and tasks also follow involvement.** An event's owner runs its workspace and its tasks; its team can see it. A task's assignees, reviewer and creator can always see it. Approval chain rules: the event owner cannot forward or approve their own proposal, and a reviewer cannot review their own task submission.
 | `finance.view`, `finance.income.record`, `finance.expense.verify`, `membership.*` | Treasurer **user** (sensitive, so a direct grant) | global |
 | `finance.view`, `finance.expense.approve` | Vice Chair **user** (if configured) | global |
 | `points.evaluate` | VC and Secretary positions | per the evaluator map |

@@ -18,7 +18,7 @@ export function useOrgRefresh() {
   };
 }
 
-function FormModal({ title, onClose, onSubmit, submitLabel, danger, children }: {
+export function FormModal({ title, onClose, onSubmit, submitLabel, danger, children }: {
   title: string; onClose: () => void; onSubmit: () => Promise<unknown>; submitLabel: string;
   danger?: boolean; children: ReactNode;
 }) {
@@ -166,7 +166,7 @@ export function AssignModal({ position, onClose }: { position: Position; onClose
                  });
                  refresh();
                }}>
-      <Field label="Person"><PersonPicker value={person} onChange={setPerson} exclude={position.holders.map((h) => h.user.id)} /></Field>
+      <Field group label="Person"><PersonPicker value={person} onChange={setPerson} exclude={position.holders.map((h) => h.user.id)} /></Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Starting"><Input type="date" required value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
         <Field label="Reason">
@@ -269,7 +269,7 @@ export function AddMemberModal({ dept, existing, onClose }: { dept: Department; 
                  await api(`/departments/${dept.id}/members`, { method: "POST", body: { user_id: person.id, valid_from: from } });
                  refresh();
                }}>
-      <Field label="Person"><PersonPicker value={person} onChange={setPerson} exclude={existing} /></Field>
+      <Field group label="Person"><PersonPicker value={person} onChange={setPerson} exclude={existing} /></Field>
       <Field label="Joined on"><Input type="date" required value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
     </FormModal>
   );

@@ -11,9 +11,12 @@ from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.errors import error_body, install_error_handlers
 from app.core.request_context import client_ip, from_trusted_proxy, request_ip
+from app.events.router import router as events_router
+from app.notifications.router import router as notifications_router
 from app.org.router import router as org_router
 from app.permissions.catalogue import sync_catalogue
 from app.permissions.router import router as permissions_router
+from app.tasks.router import router as tasks_router
 from app.users.router import router as users_router
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -24,7 +27,7 @@ PUBLIC_PATHS = {"/api/health", "/api/auth/login", "/api/auth/accept-invite",
                 "/api/auth/invite/{token}"}
 # Require a login but no specific permission (users acting on their own session).
 SELF_PATHS = {"/api/auth/me", "/api/auth/logout", "/api/auth/change-password",
-              "/api/me/org", "/api/me/profile"}
+              "/api/me/org", "/api/me/profile", "/api/notifications", "/api/notifications/read"}
 
 
 @asynccontextmanager
@@ -70,6 +73,9 @@ def create_app() -> FastAPI:
     app.include_router(permissions_router)
     app.include_router(org_router)
     app.include_router(audit_router)
+    app.include_router(events_router)
+    app.include_router(tasks_router)
+    app.include_router(notifications_router)
     return app
 
 

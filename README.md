@@ -65,7 +65,8 @@ Free hosting on your own domain (Cloudflare Pages + Render + Neon): step-by-step
 |---|---|
 | `python -m app.cli create-superadmin --email … --name …` | Create the Chairperson account (only once; prompts for the password) |
 | `python -m app.cli seed-roles` | Create the default Leadership / Department Lead / Member roles |
-| `python -m app.cli seed-org` | Create the leadership positions and the 9 departments from the blueprint (empty organisation only) |
+| `python -m app.cli seed-org` | Create the leadership positions and the 9 departments from the blueprint, with their default access (empty organisation only) |
+| `python -m app.cli sync-defaults` | After an upgrade: add new default role permissions and grants to an existing installation (never removes) |
 | `python -m app.cli expire-grants` | Mark lapsed grants and log them (schedule nightly) |
 
 ## Repository layout

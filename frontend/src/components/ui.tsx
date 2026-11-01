@@ -1,4 +1,5 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes,
+  TextareaHTMLAttributes } from "react";
 import { useEffect } from "react";
 import { twMerge } from "tailwind-merge";
 
@@ -44,7 +45,18 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className={cx(fieldClass, props.className)} />;
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+/** A labelled form field. Use `group` when the field holds several controls (e.g. a person
+ *  picker's search box and result buttons): a <label> would name every button after itself. */
+export function Field({ label, hint, children, group }: { label: string; hint?: string; children: ReactNode; group?: boolean }) {
+  if (group) {
+    return (
+      <div role="group" aria-label={label} className="block">
+        <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
+        {children}
+        {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
+      </div>
+    );
+  }
   return (
     <label className="block">
       <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
@@ -88,9 +100,11 @@ const badgeTones = {
   red: "bg-red-50 text-red-700 ring-red-600/20",
   slate: "bg-slate-100 text-slate-600 ring-slate-500/20",
   blue: "bg-brand-50 text-brand-700 ring-brand-600/20",
+  violet: "bg-violet-50 text-violet-700 ring-violet-600/20",
 };
+export type BadgeTone = keyof typeof badgeTones;
 
-export function Badge({ tone = "slate", children }: { tone?: keyof typeof badgeTones; children: ReactNode }) {
+export function Badge({ tone = "slate", children }: { tone?: BadgeTone; children: ReactNode }) {
   return (
     <span className={cx("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset", badgeTones[tone])}>
       {children}
@@ -151,6 +165,51 @@ export function Spinner() {
       Loading…
     </div>
   );
+}
+
+/** Tabs kept in the URL (?tab=…) so a page can be linked and survives a reload. */
+export function Tabs<T extends string>({ tabs, value, onChange }: {
+  tabs: readonly (readonly [T, string])[]; value: T; onChange: (tab: T) => void;
+}) {
+  return (
+    <div className="mb-4 flex gap-1 overflow-x-auto border-b border-slate-200">
+      {tabs.map(([key, label]) => (
+        <button key={key} onClick={() => onChange(key)}
+                className={cx("-mb-px whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium",
+                  value === key ? "border-brand-600 text-brand-700" : "border-transparent text-slate-500 hover:text-slate-700")}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea rows={3} {...props} className={cx(fieldClass, props.className)} />;
+}
+
+/** ISO timestamp → value for <input type="datetime-local"> in the viewer's time zone. */
+export function toInputDateTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+/** <input type="datetime-local"> value (local time) → ISO timestamp with time zone, or null. */
+export function fromInputDateTime(value: string): string | null {
+  return value ? new Date(value).toISOString() : null;
+}
+
+/** "in 3 days", "2 hours ago": for due dates and activity. */
+export function relativeTime(iso: string): string {
+  const diff = new Date(iso).getTime() - Date.now();
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [["day", 86_400_000], ["hour", 3_600_000], ["minute", 60_000]];
+  const fmt = new Intl.RelativeTimeFormat("en-IN", { numeric: "auto" });
+  for (const [unit, ms] of units) {
+    if (Math.abs(diff) >= ms || unit === "minute") return fmt.format(Math.round(diff / ms), unit);
+  }
+  return "";
 }
 
 export function formatDate(value: string | null | undefined, withTime = true): string {

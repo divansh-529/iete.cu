@@ -180,6 +180,113 @@ export interface Term {
   is_current: boolean;
 }
 
+// ---------------------------------------------------------------- events
+
+export type EventStatus = "draft" | "proposed" | "awaiting_approval" | "approved" | "open_for_registration"
+  | "ongoing" | "completed" | "cancelled" | "archived";
+
+export interface Ref {
+  id: number;
+  name: string;
+}
+
+export interface EventSummary {
+  id: number;
+  name: string;
+  slug: string;
+  category: string | null;
+  status: EventStatus;
+  venue: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  owner: PersonRef;
+  departments: Ref[];
+  team_size: number;
+  open_tasks: number;
+  created_at: string;
+}
+
+export interface StatusChange {
+  from_status: string | null;
+  to_status: string;
+  changed_by: PersonRef;
+  remarks: string | null;
+  changed_at: string;
+}
+
+export interface AllowedTransition {
+  to_status: EventStatus;
+  label: string;
+  needs_remarks: boolean;
+  tone: "primary" | "secondary" | "danger";
+}
+
+export interface EventDetail extends EventSummary {
+  description: string | null;
+  capacity: number | null;
+  budget_planned: string | null;
+  is_public: boolean;
+  team: { id: number; user: PersonRef; event_role: string; added_at: string }[];
+  milestones: { id: number; title: string; due_at: string | null; done_at: string | null }[];
+  checklist: { id: number; label: string; sort_order: number; done_at: string | null; done_by: PersonRef | null }[];
+  history: StatusChange[];
+  allowed_transitions: AllowedTransition[];
+  can_edit: boolean;
+  can_manage: boolean;
+  can_add_tasks: boolean;
+}
+
+// ---------------------------------------------------------------- tasks
+
+export type TaskStatus = "not_started" | "assigned" | "in_progress" | "submitted" | "under_review" | "completed" | "rejected";
+export type TaskPriority = "low" | "medium" | "high" | "urgent";
+export type TaskAction = "comment" | "edit" | "assign" | "start" | "submit" | "review" | "reopen";
+
+export interface TaskSummary {
+  id: number;
+  title: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  due_at: string | null;
+  overdue: boolean;
+  department: Ref | null;
+  event: Ref | null;
+  assignees: PersonRef[];
+  reviewer: PersonRef | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskDetail extends TaskSummary {
+  description: string | null;
+  created_by: PersonRef;
+  depends_on: { id: number; title: string; status: TaskStatus }[];
+  blocked: boolean;
+  submissions: {
+    id: number; submitted_by: PersonRef; note: string | null; link_url: string | null; submitted_at: string;
+    review_outcome: "accepted" | "changes_requested" | "rejected" | null; reviewed_by: PersonRef | null;
+    review_remarks: string | null; reviewed_at: string | null;
+  }[];
+  comments: { id: number; author: PersonRef; body: string; created_at: string }[];
+  history: StatusChange[];
+  actions: TaskAction[];
+}
+
+// ---------------------------------------------------------------- notifications
+
+export interface AppNotification {
+  id: number;
+  kind: string;
+  payload: Record<string, unknown>;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface NotificationPage {
+  items: AppNotification[];
+  unread: number;
+}
+
 export interface AuditEvent {
   id: number;
   actor_id: number | null;

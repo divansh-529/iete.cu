@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { api } from "../../api/client";
-import type { UserPage } from "../../api/types";
+import type { EventSummary, TaskSummary, UserPage } from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
 import { TriangleMotif } from "../../components/Brand";
 import { Card } from "../../components/ui";
@@ -17,6 +17,11 @@ export function DashboardPage() {
       return Object.fromEntries(statuses.map((s, i) => [s, pages[i].total])) as Record<(typeof statuses)[number], number>;
     },
   });
+
+  const myTasks = useQuery({ queryKey: ["tasks", "mine", false], queryFn: () => api<TaskSummary[]>("/tasks?view=mine&status=open") });
+  const toReview = useQuery({ queryKey: ["tasks", "review", false], queryFn: () => api<TaskSummary[]>("/tasks?view=review") });
+  const eventsToAct = useQuery({ queryKey: ["events", "action", "", ""], queryFn: () => api<EventSummary[]>("/events?view=action") });
+  const overdue = myTasks.data?.filter((t) => t.overdue).length ?? 0;
 
   const permissionCount = me?.all_permissions ? null : new Set(me?.permissions.map((p) => p.code)).size;
 
@@ -34,6 +39,12 @@ export function DashboardPage() {
           </p>
         </div>
       </section>
+      <div className="mb-7 grid gap-4 sm:grid-cols-3">
+        <WorkTile to="/app/tasks?tab=mine" label="My open tasks" value={myTasks.data?.length}
+                  note={overdue ? `${overdue} overdue` : undefined} />
+        <WorkTile to="/app/tasks?tab=review" label="Waiting for my review" value={toReview.data?.length} />
+        <WorkTile to="/app/events?tab=action" label="Events needing my action" value={eventsToAct.data?.length} />
+      </div>
       {counts.data && (
         <div className="mb-7 grid gap-4 sm:grid-cols-3">
           <Stat label="Active accounts" value={counts.data.active} accent="bg-emerald-500" />
@@ -51,6 +62,19 @@ export function DashboardPage() {
         )}
       </Card>
     </>
+  );
+}
+
+function WorkTile({ to, label, value, note }: { to: string; label: string; value?: number; note?: string }) {
+  return (
+    <Link to={to} className="group rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-900/[0.03] transition hover:border-brand-400 hover:shadow-md">
+      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="mt-2 flex items-baseline gap-2">
+        <span className="font-display text-3xl font-semibold text-slate-900 tabular-nums">{value ?? "–"}</span>
+        {note && <span className="text-sm font-medium text-red-600">{note}</span>}
+      </div>
+      <div className="mt-1 text-xs font-medium text-brand-600 group-hover:underline">Open →</div>
+    </Link>
   );
 }
 

@@ -10,10 +10,14 @@ import { ForcedChangePasswordPage } from "./features/auth/ForcedChangePasswordPa
 import { LoginPage } from "./features/auth/LoginPage";
 import { AuditPage } from "./features/audit/AuditPage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
+import { EventDetailPage } from "./features/events/EventDetailPage";
+import { EventsPage } from "./features/events/EventsPage";
 import { DepartmentDetailPage } from "./features/org/DepartmentDetailPage";
 import { OrgPage } from "./features/org/OrgPage";
 import { PositionDetailPage } from "./features/org/PositionDetailPage";
 import { RolesPage } from "./features/roles/RolesPage";
+import { TaskDetailPage } from "./features/tasks/TaskDetailPage";
+import { TasksPage } from "./features/tasks/TasksPage";
 import { UserDetailPage } from "./features/users/UserDetailPage";
 import { UsersPage } from "./features/users/UsersPage";
 import "./index.css";
@@ -47,6 +51,10 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/accept-invite" element={<AcceptInvitePage />} />
             <Route path="/app" element={<AppLayout />}>
               <Route index element={<DashboardPage />} />
+              <Route path="events" element={<EventsPage />} />
+              <Route path="events/:id" element={<EventDetailPage />} />
+              <Route path="tasks" element={<TasksPage />} />
+              <Route path="tasks/:id" element={<TaskDetailPage />} />
               <Route path="users" element={<UsersPage />} />
               <Route path="users/:id" element={<UserDetailPage />} />
               <Route path="org" element={<OrgPage />} />

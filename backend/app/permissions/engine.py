@@ -162,6 +162,14 @@ def has_any(db: Session, user: User, permission: str) -> bool:
     return grants is None or bool(grants)
 
 
+def users_who_can(db: Session, permission: str, scope: Scope, exclude: set[int] = frozenset()) -> list[int]:
+    """Active team members who hold `permission` at `scope` (used to notify reviewers and
+    approvers). Checks each person, which is fine for a forum-sized team."""
+    users = db.scalars(select(User).where(User.user_type == "team", User.status == "active",
+                                          User.id.not_in(exclude or {0}))).all()
+    return [u.id for u in users if can(db, u, permission, scope)]
+
+
 def visible_department_ids(db: Session, user: User, permission: str) -> set[int] | None:
     """Departments where the user holds `permission` (including sub-departments).
     None means every department (a global grant)."""

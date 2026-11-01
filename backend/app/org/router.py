@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth.deps import current_user, require, require_any
+from app.auth.deps import current_user, require, require_any, require_any_of
 from app.core.db import get_db
 from app.org import service
 from app.org.models import Term
@@ -26,8 +26,10 @@ def org_chart(user: User = Depends(require_any("org.view")), db: Session = Depen
 
 @router.get("/org/people", response_model=list[PersonRef])
 def org_people(q: str | None = None, limit: int = Query(20, ge=1, le=100),
-               _: User = Depends(require_any("org.assign")), db: Session = Depends(get_db)):
-    """Minimal people search for assignment pickers (does not require users.view)."""
+               _: User = Depends(require_any_of("org.assign", "tasks.assign", "events.create", "events.edit")),
+               db: Session = Depends(get_db)):
+    """Minimal people search for pickers: staffing departments, event teams and task assignees.
+    Returns names and emails only (does not require users.view)."""
     return [{"id": u.id, "full_name": u.full_name, "email": u.email} for u in service.people(db, q, limit)]
 
 

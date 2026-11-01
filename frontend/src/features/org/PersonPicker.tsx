@@ -5,8 +5,8 @@ import type { PersonRef } from "../../api/types";
 import { cx, Input } from "../../components/ui";
 
 /** Search team members by name or email and pick one. */
-export function PersonPicker({ value, onChange, exclude = [] }: {
-  value: PersonRef | null; onChange: (p: PersonRef | null) => void; exclude?: number[];
+export function PersonPicker({ value, onChange, exclude = [], autoFocus = true }: {
+  value: PersonRef | null; onChange: (p: PersonRef | null) => void; exclude?: number[]; autoFocus?: boolean;
 }) {
   const [q, setQ] = useState("");
   const results = useQuery({
@@ -26,7 +26,7 @@ export function PersonPicker({ value, onChange, exclude = [] }: {
   const options = (results.data ?? []).filter((p) => !exclude.includes(p.id));
   return (
     <div>
-      <Input placeholder="Search by name or email…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+      <Input placeholder="Search by name or email…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus={autoFocus} />
       <ul className="mt-1 max-h-48 overflow-y-auto rounded-md border border-slate-200">
         {options.length === 0 && <li className="px-3 py-2 text-sm text-slate-500">No matching team members.</li>}
         {options.map((p, i) => (

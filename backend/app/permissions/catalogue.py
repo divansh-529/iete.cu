@@ -46,6 +46,7 @@ _DEFS = [
     PermissionDef("events.view", "View events"),
     PermissionDef("events.create", "Create events"),
     PermissionDef("events.edit", "Edit events and their workspace"),
+    PermissionDef("events.review", "Review event proposals and forward them for approval"),
     PermissionDef("events.approve", "Approve or reject event proposals", S),
     PermissionDef("events.archive", "Archive events"),
     # Documents
