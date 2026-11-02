@@ -25,7 +25,7 @@ from app.users.models import User
 # Starting roles from docs/02-permissions.md §8. Editable in the app afterwards.
 DEFAULT_ROLES = {
     "Leadership": ("Vice Chair, Secretary, Joint Secretary", [
-        "users.view", "org.view", "events.view", "events.create", "events.edit", "events.review",
+        "org.view", "events.view", "events.create", "events.edit", "events.review",
         "events.archive",
         "tasks.view", "tasks.create", "tasks.assign", "tasks.review", "tasks.export",
         "documents.view", "documents.upload", "documents.review", "finance.expense.submit", "points.view",

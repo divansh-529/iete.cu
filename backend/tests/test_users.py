@@ -1,6 +1,9 @@
+from datetime import date
+
 from sqlalchemy import select
 
 from app.audit.models import AuditEvent
+from app.org.models import Position, PositionAssignment
 from tests.conftest import PASSWORD, grant, make_user
 
 
@@ -36,15 +39,6 @@ def test_member_without_permission_is_forbidden(client, db):
                                            "credential": "invite"}).status_code == 403
 
 
-def test_granted_view_permission_allows_listing_only(client, chair, db):
-    sec = make_user(db, "sec@ietecu.in")
-    grant(db, sec, "users.view", chair)
-    client.login("sec@ietecu.in")
-    assert client.get("/api/users").status_code == 200
-    assert client.post("/api/users", json={"email": "a@ietecu.in", "full_name": "Aa",
-                                           "credential": "invite"}).status_code == 403
-
-
 def test_suspend_ends_sessions_immediately(client, make_client, chair, db):
     member = make_user(db, "m@ietecu.in")
     member_client = make_client()
@@ -75,6 +69,11 @@ def test_admin_cannot_touch_chairperson_or_self(client, chair, db):
     admin = make_user(db, "admin@ietecu.in")
     grant(db, admin, "users.suspend", chair)
     grant(db, admin, "users.reset_password", chair)
+    position = Position(title="Vice Chairperson")
+    db.add(position)
+    db.flush()
+    db.add(PositionAssignment(user_id=admin.id, position_id=position.id, valid_from=date.today(), start_reason="appointed", assigned_by=chair.id))
+    db.commit()
     client.login("admin@ietecu.in")
     assert client.post(f"/api/users/{chair.id}/suspend", json={"reason": "coup"}).status_code == 403
     assert client.post(f"/api/users/{admin.id}/suspend", json={"reason": "self"}).status_code == 403

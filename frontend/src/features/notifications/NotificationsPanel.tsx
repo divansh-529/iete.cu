@@ -36,8 +36,13 @@ function describe(n: AppNotification): { text: string; to: string } {
                                          + (p.remarks ? `: “${p.remarks}”` : ""), to: `/app/documents?open=${p.document_id}` };
     case "expense.submitted": return { text: `${p.by} submitted ${p.code} (₹${p.amount}): ${p.purpose}. Please verify it.`, to: `/app/finance?tab=to_act&open=${p.transaction_id}` };
     case "expense.verified": return { text: `${p.by} verified ${p.code} (₹${p.amount}). It needs your approval.`, to: `/app/finance?tab=to_act&open=${p.transaction_id}` };
-    case "expense.approved": return { text: `${p.by} approved your expense ${p.code} (₹${p.amount}) ✓`, to: `/app/finance?tab=mine&open=${p.transaction_id}` };
-    case "expense.rejected": return { text: `${p.by} rejected your expense ${p.code}: “${p.reason}”`, to: `/app/finance?tab=mine&open=${p.transaction_id}` };
+    case "expense.approved": return { text: `${p.by} approved your ${p.entry ?? "expense"} ${p.code} (₹${p.amount}) ✓`, to: `/app/finance?tab=mine&open=${p.transaction_id}` };
+    case "expense.rejected": return { text: `${p.by} rejected your ${p.entry ?? "expense"} ${p.code}: “${p.reason}”`, to: `/app/finance?tab=mine&open=${p.transaction_id}` };
+    case "entry.waiting": return { text: `${p.by} recorded ${p.code} (₹${p.amount}): ${p.purpose}. It needs your approval.`, to: `/app/finance?tab=to_act&open=${p.transaction_id}` };
+    case "appeal.submitted": return { text: `${p.by} appealed the rejection of ${p.code} (₹${p.amount})`, to: `/app/finance?tab=appeals&open=${p.transaction_id}` };
+    case "appeal.comment": return { text: `${p.by} commented on the appeal for ${p.code}`, to: `/app/finance?tab=appeals&open=${p.transaction_id}` };
+    case "appeal.approved": return { text: `${p.by} approved your appeal for ${p.code} (₹${p.amount}) ✓`, to: `/app/finance?tab=appeals&open=${p.transaction_id}` };
+    case "appeal.rejected": return { text: `${p.by} rejected your appeal for ${p.code}: “${p.reason}”`, to: `/app/finance?tab=appeals&open=${p.transaction_id}` };
     case "transaction.reversed": return { text: `${p.by} reversed ${p.code}: “${p.reason}”`, to: `/app/finance?tab=mine&open=${p.transaction_id}` };
     case "score.round_opened": return { text: `Scoring is open: “${p.title}”. Please give your scores.`, to: "/app/scores?tab=score" };
     case "score.published": return { text: `“${p.title}” score cards are published. See yours.`, to: "/app/scores" };

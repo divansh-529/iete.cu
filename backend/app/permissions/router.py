@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api", tags=["permissions"])
 
 @router.get("/permissions", response_model=list[PermissionOut])
 def list_permissions(_: User = Depends(require("permissions.view")), db: Session = Depends(get_db)):
-    return db.scalars(select(Permission).order_by(Permission.module, Permission.code)).all()
+    return db.scalars(select(Permission).where(Permission.code.in_(CATALOGUE)).order_by(Permission.module, Permission.code)).all()
 
 
 @router.get("/roles", response_model=list[RoleOut])

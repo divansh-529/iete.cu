@@ -23,7 +23,6 @@ class PermissionDef:
 S = True
 _DEFS = [
     # Users
-    PermissionDef("users.view", "View team accounts"),
     PermissionDef("users.create", "Create team accounts", S),
     PermissionDef("users.edit", "Edit team account details", S),
     PermissionDef("users.suspend", "Suspend, reactivate or deactivate accounts", S),

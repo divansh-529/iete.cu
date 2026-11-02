@@ -3,21 +3,32 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.auth.deps import require
+from app.auth.deps import current_user, require
 from app.core.config import settings
 from app.core.db import get_db
+from app.core.errors import forbidden
+from app.org.roster import can_view_accounts
 from app.users import service
 from app.users.models import User
 from app.users.schemas import (DeleteUserIn, InviteOut, ResetPasswordIn, StatusChangeIn, UserCreateIn,
                                UserCreateOut, UserDeletedOut, UserOut, UserPage, UserUpdateIn)
 
-router = APIRouter(prefix="/api/users", tags=["users"])
+
+def _accounts_area(user: User = Depends(current_user), db: Session = Depends(get_db)) -> User:
+    if not can_view_accounts(db, user):
+        raise forbidden()
+    return user
+
+
+_accounts_area.required_permission = "position: team accounts"  # type: ignore[attr-defined]
+
+router = APIRouter(prefix="/api/users", tags=["users"], dependencies=[Depends(_accounts_area)])
 
 
 @router.get("", response_model=UserPage)
 def list_users(q: str | None = None, status: str | None = None, user_type: str | None = "team",
                offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200),
-               _: User = Depends(require("users.view")), db: Session = Depends(get_db)):
+               db: Session = Depends(get_db)):
     items, total = service.list_users(db, q, status, user_type, offset, limit)
     return UserPage(items=[UserOut.model_validate(u) for u in items], total=total)
 
@@ -33,7 +44,7 @@ def create_user(body: UserCreateIn, actor: User = Depends(require("users.create"
 
 
 @router.get("/{user_id}", response_model=UserOut)
-def get_user(user_id: int, _: User = Depends(require("users.view")), db: Session = Depends(get_db)):
+def get_user(user_id: int, db: Session = Depends(get_db)):
     return service.get_user(db, user_id)
 
 

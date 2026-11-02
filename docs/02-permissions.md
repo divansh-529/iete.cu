@@ -22,7 +22,7 @@ Positions belong to the org structure ([03-data-model.md](03-data-model.md) §2)
 
 | Module | Permission codes |
 |---|---|
-| Users | `users.view`, `users.create` S, `users.edit` S, `users.suspend` S, `users.reset_password` S, `users.approve` |
+| Users | `users.create` S, `users.edit` S, `users.suspend` S, `users.reset_password` S, `users.approve` |
 | Permissions | `permissions.view` S, `permissions.manage` S, `roles.manage` S |
 | Org | `org.view`, `org.manage` (departments, positions), `org.assign` (move or assign members) |
 | Tasks | `tasks.view`, `tasks.create`, `tasks.assign`, `tasks.review`, `tasks.export` |

@@ -37,7 +37,7 @@ const NAV: NavItem[] = [
     icon: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" },
   { to: "/app/recruitment", label: "Recruitment", permission: ["users.approve", "org.assign"],
     icon: "M15 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1m6-9a3 3 0 1 0 0-6 3 3 0 0 0 0 6m10-1v6m3-3h-6" },
-  { to: "/app/users", label: "Team accounts", permission: "users.view",
+  { to: "/app/users", label: "Team accounts", show: (me) => me.can_view_accounts,
     icon: "M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6m13 9v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8" },
   { to: "/app/roles", label: "Roles", permission: "permissions.view",
     icon: "M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6zm-3 9 2 2 4-4" },

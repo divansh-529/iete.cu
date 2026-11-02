@@ -1,7 +1,8 @@
 """Finance and membership. An expense is submitted, verified, then approved, and only then counts in
 a balance. Nobody verifies or approves what they submitted, except that the Chairperson's own expenses
 post at once (the Chairperson's decision). Income and transfers are recorded by people trusted to do so
-and post at once. Anything posted is corrected with a reversal, never an edit."""
+and post at once. What the Treasurer or Joint Secretary records instead waits for the Chairperson alone,
+and they can appeal when it is rejected. Anything posted is corrected with a reversal, never an edit."""
 import hashlib
 import uuid
 from datetime import date
@@ -19,19 +20,23 @@ from app.documents import storage
 from app.documents.service import PREVIEWABLE, check_file
 from app.events.models import Event
 from app.events.service import event_scope
-from app.finance.models import (FinAccount, FinAttachment, FinReconciliation, FinTransaction, Membership,
-                                MembershipCategory)
+from app.finance.access import finance_can, is_keeper
+from app.finance.models import (FinAccount, FinAppeal, FinAppealComment, FinAttachment, FinReconciliation, FinTransaction,
+                                Membership, MembershipCategory)
 from app.finance.member_upload import read_members
 from app.finance.schemas import (AccountIn, CategoryIn, ExpenseIn, IncomeIn, MembershipIn, PaidMemberIn, PayIn,
                                  ReconciliationIn, TransferIn)
 from app.notifications.service import notify
 from app.org.models import Department, MemberProfile
+from app.org.roster import can_view_roster
 from app.org.service import department_names, people_by_id
 from app.permissions import engine
 from app.permissions.engine import GLOBAL, can, department_scope
 from app.users.models import User
 
 CHAIRPERSON_ABOVE = Decimal(5000)      # larger expenses need the Chairperson (docs/07-open-decisions.md)
+MAX_APPEAL_FILES = 5
+ENTRY_NAMES = {"income": "income entry", "transfer_in": "transfer", "transfer_out": "transfer", "reversal": "reversal"}
 PREFIX = {"income": "INC", "expense": "EXP", "transfer_in": "TRF", "transfer_out": "TRF", "reversal": "REV"}
 
 
@@ -135,11 +140,15 @@ def _record(db: Session, actor: User, txn_type: str, is_credit: bool, account: F
 
 
 def record_income(db: Session, actor: User, body: IncomeIn) -> FinTransaction:
-    engine.ensure(db, actor, "finance.income.record")
+    if not finance_can(db, actor, "finance.income.record"):
+        raise forbidden()
     _check_date(body.txn_date)
     _links(db, body)
-    tx = _record(db, actor, "income", True, _account(db, body.account_id, body.txn_date), "posted",
+    keeper = is_keeper(db, actor)
+    tx = _record(db, actor, "income", True, _account(db, body.account_id, body.txn_date), "submitted" if keeper else "posted",
                  **body.model_dump(exclude={"account_id"}))
+    if keeper:
+        _notify_chairperson(db, tx, actor)
     db.commit()
     return tx
 
@@ -148,15 +157,16 @@ def submit_expense(db: Session, actor: User, body: ExpenseIn) -> FinTransaction:
     scope = (event_scope(db, body.event_id) if body.event_id
              else department_scope(db, body.department_id) if body.department_id else GLOBAL)
     _links(db, body)
-    if not can(db, actor, "finance.expense.submit", scope):
+    if not finance_can(db, actor, "finance.expense.submit", scope):
         raise forbidden("Choose a department or event you can submit expenses for.")
     _check_date(body.txn_date)
     status = "posted" if actor.is_super_admin else "submitted"
     tx = _record(db, actor, "expense", False, _account(db, body.account_id, body.txn_date), status,
                  **body.model_dump(exclude={"account_id"}))
-    if status == "submitted":
-        notify(db, engine.users_who_can(db, "finance.expense.verify", GLOBAL, {actor.id}), "expense.submitted",
-               _payload(tx, actor), actor.id)
+    if is_keeper(db, actor):
+        _notify_chairperson(db, tx, actor)
+    elif status == "submitted":
+        notify(db, _verifiers(db, actor.id), "expense.submitted", _payload(tx, actor), actor.id)
     db.commit()
     return tx
 
@@ -168,24 +178,68 @@ def transfer(db: Session, actor: User, body: TransferIn) -> FinTransaction:
     source = _account(db, body.from_account_id, body.txn_date)
     target = _account(db, body.to_account_id, body.txn_date)
     group = uuid.uuid4()
+    keeper = is_keeper(db, actor)
+    status = "submitted" if keeper else "posted"
     fields = {"amount": body.amount, "txn_date": body.txn_date, "purpose": body.purpose, "transfer_group_id": group}
-    out = _record(db, actor, "transfer_out", False, source, "posted", counterparty=target.name, **fields)
-    _record(db, actor, "transfer_in", True, target, "posted", counterparty=source.name, **fields)
+    out = _record(db, actor, "transfer_out", False, source, status, counterparty=target.name, **fields)
+    _record(db, actor, "transfer_in", True, target, status, counterparty=source.name, **fields)
+    if keeper:
+        _notify_chairperson(db, out, actor)
     db.commit()
     return out
 
 
 def _payload(tx: FinTransaction, actor: User, **extra) -> dict:
-    return {"transaction_id": tx.id, "code": tx.code, "amount": str(tx.amount), "purpose": tx.purpose, "by": actor.full_name, **extra}
+    return {"transaction_id": tx.id, "code": tx.code, "amount": str(tx.amount), "purpose": tx.purpose, "by": actor.full_name,
+            "entry": ENTRY_NAMES.get(tx.txn_type, "expense"), **extra}
+
+
+def _active_team(db: Session, exclude: set[int] = frozenset()) -> list[User]:
+    return list(db.scalars(select(User).where(User.user_type == "team", User.status == "active", User.id.not_in(exclude or {0}))))
+
+
+def _verifiers(db: Session, exclude: int) -> list[int]:
+    return [u.id for u in _active_team(db, {exclude}) if finance_can(db, u, "finance.expense.verify")]
+
+
+def _chairpersons(db: Session) -> list[int]:
+    return list(db.scalars(select(User.id).where(User.is_super_admin, User.status == "active")))
+
+
+def _notify_chairperson(db: Session, tx: FinTransaction, actor: User) -> None:
+    notify(db, _chairpersons(db), "entry.waiting", _payload(tx, actor), actor.id)
 
 
 # ---------------------------------------------------------------- expense workflow
 
 def _get(db: Session, user: User, transaction_id: int) -> FinTransaction:
     tx = db.get(FinTransaction, transaction_id)
-    if tx is None or not (tx.submitted_by == user.id or can(db, user, "finance.view")):
+    if tx is None or not (tx.submitted_by == user.id or finance_can(db, user, "finance.view")
+                          or (can_view_roster(db, user) and _appealed(db, tx))):
         raise not_found("Transaction")
     return tx
+
+
+def _legs(db: Session, tx: FinTransaction) -> list[FinTransaction]:
+    if tx.transfer_group_id is None:
+        return [tx]
+    return list(db.scalars(select(FinTransaction).where(FinTransaction.transfer_group_id == tx.transfer_group_id)
+                           .order_by(FinTransaction.id)))
+
+
+def _first_leg(db: Session, tx: FinTransaction) -> FinTransaction:
+    """A transfer's two sides share one appeal, kept on its first side."""
+    return _legs(db, tx)[0]
+
+
+def _appealed(db: Session, tx: FinTransaction) -> bool:
+    return db.scalar(select(FinAppeal.id).where(FinAppeal.transaction_id == _first_leg(db, tx).id).limit(1)) is not None
+
+
+def _for_chair(db: Session, tx: FinTransaction) -> bool:
+    """Only the Chairperson can clear this: it was recorded by the Treasurer or Joint Secretary.
+    Waiting income and transfers come only from them."""
+    return tx.txn_type != "expense" or is_keeper(db, db.get(User, tx.submitted_by))
 
 
 def _needs_chair(tx: FinTransaction) -> bool:
@@ -194,7 +248,7 @@ def _needs_chair(tx: FinTransaction) -> bool:
 
 def _can_verify(db: Session, user: User, tx: FinTransaction) -> bool:
     return (tx.txn_type == "expense" and tx.status == "submitted" and tx.submitted_by != user.id
-            and can(db, user, "finance.expense.verify"))
+            and not _for_chair(db, tx) and finance_can(db, user, "finance.expense.verify"))
 
 
 def _own_chair_expense(user: User, tx: FinTransaction) -> bool:
@@ -206,8 +260,11 @@ def _own_chair_expense(user: User, tx: FinTransaction) -> bool:
 def _can_approve(db: Session, user: User, tx: FinTransaction) -> bool:
     if _own_chair_expense(user, tx):
         return True
+    if tx.status == "appealed" or (tx.status == "submitted" and _for_chair(db, tx)):
+        return user.is_super_admin and tx.submitted_by != user.id
     return (tx.txn_type == "expense" and tx.status == "verified" and tx.submitted_by != user.id
-            and can(db, user, "finance.expense.approve") and (user.is_super_admin or not _needs_chair(tx)))
+            and can(db, user, "finance.expense.approve")
+            and (user.is_super_admin or not (_needs_chair(tx) or _for_chair(db, tx))))
 
 
 def _can_reject(db: Session, user: User, tx: FinTransaction) -> bool:
@@ -244,12 +301,14 @@ def approve(db: Session, actor: User, transaction_id: int) -> None:
             raise forbidden(f"Expenses above ₹{CHAIRPERSON_ABOVE:,} need the Chairperson.")
         raise forbidden("You can't approve this expense.")
     now = utcnow()
-    tx.status, tx.posted_at = "posted", now
-    if tx.submitted_by != actor.id:      # the database keeps approved_by different from the submitter
-        tx.approved_by, tx.approved_at = actor.id, now
+    appeal = _decide_appeal(db, actor, tx, "approved", None)
+    for leg in _legs(db, tx):
+        leg.status, leg.posted_at, leg.rejection_reason = "posted", now, None
+        if leg.submitted_by != actor.id:      # the database keeps approved_by different from the submitter
+            leg.approved_by, leg.approved_at = actor.id, now
     audit.record(db, actor.id, "finance.expense_approve", "fin_transaction", tx.id,
                  after={"code": tx.code, "amount": str(tx.amount)})
-    notify(db, [tx.submitted_by], "expense.approved", _payload(tx, actor), actor.id)
+    notify(db, [tx.submitted_by], "appeal.approved" if appeal else "expense.approved", _payload(tx, actor), actor.id)
     db.commit()
 
 
@@ -257,9 +316,65 @@ def reject(db: Session, actor: User, transaction_id: int, reason: str) -> None:
     tx = _get(db, actor, transaction_id)
     if not _can_reject(db, actor, tx):
         raise forbidden("You can't reject this expense.")
-    tx.status, tx.rejection_reason = "rejected", reason.strip()
+    appeal = _decide_appeal(db, actor, tx, "rejected", reason.strip())
+    for leg in _legs(db, tx):
+        leg.status, leg.rejection_reason = "rejected", reason.strip()
     audit.record(db, actor.id, "finance.expense_reject", "fin_transaction", tx.id, after={"code": tx.code, "reason": reason})
-    notify(db, [tx.submitted_by], "expense.rejected", _payload(tx, actor, reason=reason), actor.id)
+    notify(db, [tx.submitted_by], "appeal.rejected" if appeal else "expense.rejected", _payload(tx, actor, reason=reason), actor.id)
+    db.commit()
+
+
+# ---------------------------------------------------------------- appeals
+
+def _open_appeal(db: Session, tx: FinTransaction) -> FinAppeal | None:
+    return db.scalar(select(FinAppeal).where(FinAppeal.transaction_id == _first_leg(db, tx).id, FinAppeal.decided_at.is_(None)))
+
+
+def _decide_appeal(db: Session, actor: User, tx: FinTransaction, outcome: str, note: str | None) -> FinAppeal | None:
+    appeal = _open_appeal(db, tx)
+    if appeal:
+        appeal.decided_by, appeal.decided_at, appeal.outcome, appeal.decision_note = actor.id, utcnow(), outcome, note
+        audit.record(db, actor.id, "finance.appeal_decide", "fin_transaction", tx.id, after={"code": tx.code, "outcome": outcome})
+    return appeal
+
+
+def _can_appeal(db: Session, user: User, tx: FinTransaction) -> bool:
+    return tx.status == "rejected" and tx.submitted_by == user.id and is_keeper(db, user)
+
+
+def _can_comment(db: Session, user: User, tx: FinTransaction) -> bool:
+    return tx.status == "appealed" and (tx.submitted_by == user.id or can_view_roster(db, user) or is_keeper(db, user))
+
+
+def submit_appeal(db: Session, actor: User, transaction_id: int, note: str, files: list[tuple[str, bytes]]) -> None:
+    tx = _get(db, actor, transaction_id)
+    if not _can_appeal(db, actor, tx):
+        raise forbidden("Only the Treasurer or Joint Secretary who submitted this can appeal, once it is rejected.")
+    note = note.strip()
+    if not 3 <= len(note) <= 1000:
+        raise AppError(422, "NOTE_REQUIRED", "Explain the appeal in 3 to 1000 characters.")
+    if not 1 <= len(files) <= MAX_APPEAL_FILES:
+        raise AppError(422, "DOCUMENTS_REQUIRED", f"Attach between 1 and {MAX_APPEAL_FILES} supporting documents.")
+    for filename, content in files:
+        check_file(filename, content)      # all of them, before anything is stored
+    first = _first_leg(db, tx)
+    db.add(FinAppeal(transaction_id=first.id, note=note, rejection_reason=first.rejection_reason, submitted_by=actor.id))
+    for leg in _legs(db, tx):
+        leg.status = "appealed"
+    for filename, content in files:
+        _store_attachment(db, actor, tx, "proof", filename, content)
+    audit.record(db, actor.id, "finance.appeal_submit", "fin_transaction", tx.id, after={"code": tx.code, "files": len(files)})
+    audience = [u.id for u in _active_team(db, {actor.id}) if can_view_roster(db, u) or is_keeper(db, u)]
+    notify(db, audience, "appeal.submitted", _payload(tx, actor), actor.id)
+    db.commit()
+
+
+def comment_appeal(db: Session, actor: User, transaction_id: int, body: str) -> None:
+    tx = _get(db, actor, transaction_id)
+    if not _can_comment(db, actor, tx):
+        raise forbidden("You can't comment on this.")
+    db.add(FinAppealComment(appeal_id=_open_appeal(db, tx).id, body=body.strip(), author_id=actor.id))
+    notify(db, list(set(_chairpersons(db) + [tx.submitted_by]) - {actor.id}), "appeal.comment", _payload(tx, actor), actor.id)
     db.commit()
 
 
@@ -269,11 +384,8 @@ def reverse(db: Session, actor: User, transaction_id: int, reason: str) -> None:
     tx = _get(db, actor, transaction_id)
     if not _can_reverse(db, actor, tx):
         raise forbidden("You can't reverse this transaction.")
-    legs = [tx]
-    if tx.transfer_group_id:
-        legs = list(db.scalars(select(FinTransaction).where(FinTransaction.transfer_group_id == tx.transfer_group_id)))
     today = _today()
-    for leg in legs:
+    for leg in _legs(db, tx):
         _record(db, actor, "reversal", not leg.is_credit, db.get(FinAccount, leg.account_id), "posted", amount=leg.amount,
                 txn_date=today, counterparty=leg.counterparty, purpose=f"Reversal of {leg.code}: {reason.strip()}",
                 reverses_id=leg.id, event_id=leg.event_id, department_id=leg.department_id)
@@ -287,14 +399,14 @@ def reverse(db: Session, actor: User, transaction_id: int, reason: str) -> None:
 # ---------------------------------------------------------------- attachments
 
 def _can_attach(db: Session, user: User, tx: FinTransaction) -> bool:
-    return (tx.submitted_by == user.id or can(db, user, "finance.expense.verify")
-            or can(db, user, "finance.expense.approve") or can(db, user, "finance.income.record"))
+    # After a rejection, documents come only from the person appealing, and only through the appeal.
+    if tx.status in ("rejected", "appealed"):
+        return tx.status == "appealed" and tx.submitted_by == user.id
+    return (tx.submitted_by == user.id or finance_can(db, user, "finance.expense.verify")
+            or can(db, user, "finance.expense.approve") or finance_can(db, user, "finance.income.record"))
 
 
-def add_attachment(db: Session, actor: User, transaction_id: int, kind: str, filename: str, content: bytes) -> None:
-    tx = _get(db, actor, transaction_id)
-    if not _can_attach(db, actor, tx):
-        raise forbidden()
+def _store_attachment(db: Session, actor: User, tx: FinTransaction, kind: str, filename: str, content: bytes) -> str:
     name, extension, mime_type = check_file(filename, content)
     a = FinAttachment(transaction_id=tx.id, kind=kind, storage_key=f"finance/{uuid.uuid4().hex}{extension}",
                       original_filename=name, mime_type=mime_type, size_bytes=len(content),
@@ -302,6 +414,14 @@ def add_attachment(db: Session, actor: User, transaction_id: int, kind: str, fil
     storage.put(a.storage_key, content, mime_type)
     db.add(a)
     db.flush()
+    return name
+
+
+def add_attachment(db: Session, actor: User, transaction_id: int, kind: str, filename: str, content: bytes) -> None:
+    tx = _get(db, actor, transaction_id)
+    if not _can_attach(db, actor, tx):
+        raise forbidden()
+    name = _store_attachment(db, actor, tx, kind, filename, content)
     audit.record(db, actor.id, "finance.attachment_add", "fin_transaction", tx.id, after={"file": name, "kind": kind})
     db.commit()
 
@@ -309,7 +429,7 @@ def add_attachment(db: Session, actor: User, transaction_id: int, kind: str, fil
 def attachment_url(db: Session, user: User, transaction_id: int, attachment_id: int, inline: bool) -> str:
     tx = _get(db, user, transaction_id)
     a = db.get(FinAttachment, attachment_id)
-    if a is None or a.transaction_id != tx.id:
+    if a is None or a.transaction_id not in {leg.id for leg in _legs(db, tx)}:
         raise not_found("Attachment")
     return storage.presigned_url(a.storage_key, a.original_filename, a.mime_type, inline and a.mime_type in PREVIEWABLE)
 
@@ -321,6 +441,7 @@ def _views(db: Session, rows: list[FinTransaction]) -> list[dict]:
     names = dict(db.execute(select(FinAccount.id, FinAccount.name).where(FinAccount.id.in_({t.account_id for t in rows}))).all())
     events = dict(db.execute(select(Event.id, Event.name).where(Event.id.in_({t.event_id for t in rows if t.event_id}))).all())
     depts = department_names(db, [t.department_id for t in rows if t.department_id])
+    keepers = {u.id: is_keeper(db, u) for u in db.scalars(select(User).where(User.id.in_({t.submitted_by for t in rows})))}
     reversals = dict(db.execute(select(FinTransaction.reverses_id, FinTransaction.code).where(
         FinTransaction.reverses_id.in_({t.id for t in rows}))).all())
     return [{"id": t.id, "code": t.code, "txn_type": t.txn_type, "is_credit": t.is_credit,
@@ -330,16 +451,24 @@ def _views(db: Session, rows: list[FinTransaction]) -> list[dict]:
              "event": {"id": t.event_id, "name": events[t.event_id]} if t.event_id else None,
              "department": {"id": t.department_id, "name": depts.get(t.department_id, "")} if t.department_id else None,
              "membership_id": t.membership_id, "status": t.status, "submitted_by": people[t.submitted_by],
-             "submitted_at": t.submitted_at, "reversed_by_code": reversals.get(t.id)} for t in rows]
+             "submitted_at": t.submitted_at, "reversed_by_code": reversals.get(t.id),
+             "for_chairperson": t.status == "appealed" or (t.status in ("submitted", "verified")
+                                                           and (t.txn_type != "expense" or keepers[t.submitted_by]))} for t in rows]
 
 
 def transactions(db: Session, user: User, view: str, account_id: int | None, event_id: int | None, status: str | None,
                  start: date | None, end: date | None, limit: int) -> list[dict]:
     stmt = select(FinTransaction)
-    if view == "mine" or not can(db, user, "finance.view"):
+    reader = finance_can(db, user, "finance.view")
+    if view == "appeals":
+        stmt = stmt.where(FinTransaction.id.in_(select(FinAppeal.transaction_id)))
+        if not (reader or can_view_roster(db, user)):
+            stmt = stmt.where(FinTransaction.submitted_by == user.id)
+    elif view == "mine" or not reader:
         stmt = stmt.where(FinTransaction.submitted_by == user.id)
     elif view == "to_act":
-        stmt = stmt.where(FinTransaction.txn_type == "expense", or_(FinTransaction.status == "submitted", FinTransaction.status == "verified"))
+        stmt = stmt.where(FinTransaction.txn_type.in_(("expense", "income", "transfer_out")),
+                          FinTransaction.status.in_(("submitted", "verified", "appealed")))
     if account_id:
         stmt = stmt.where(FinTransaction.account_id == account_id)
     if event_id:
@@ -359,8 +488,13 @@ def transactions(db: Session, user: User, view: str, account_id: int | None, eve
 def detail(db: Session, user: User, transaction_id: int) -> dict:
     tx = _get(db, user, transaction_id)
     ids = {tx.verified_by, tx.approved_by}
-    attachments = list(db.scalars(select(FinAttachment).where(FinAttachment.transaction_id == tx.id).order_by(FinAttachment.id)))
-    people = people_by_id(db, {i for i in ids | {a.added_by for a in attachments} if i})
+    attachments = list(db.scalars(select(FinAttachment).where(FinAttachment.transaction_id.in_([leg.id for leg in _legs(db, tx)]))
+                                  .order_by(FinAttachment.id)))
+    appeals = list(db.scalars(select(FinAppeal).where(FinAppeal.transaction_id == _first_leg(db, tx).id).order_by(FinAppeal.id)))
+    comments = list(db.scalars(select(FinAppealComment).where(FinAppealComment.appeal_id.in_([a.id for a in appeals]))
+                               .order_by(FinAppealComment.id)))
+    people = people_by_id(db, {i for i in ids | {a.added_by for a in attachments} | {a.submitted_by for a in appeals}
+                               | {a.decided_by for a in appeals} | {c.author_id for c in comments} if i})
     original = db.get(FinTransaction, tx.reverses_id) if tx.reverses_id else None
     return {**_views(db, [tx])[0],
             "verified_by": people.get(tx.verified_by), "verified_at": tx.verified_at,
@@ -368,6 +502,12 @@ def detail(db: Session, user: User, transaction_id: int) -> dict:
             "rejection_reason": tx.rejection_reason, "reverses_code": original.code if original else None,
             "attachments": [{"id": a.id, "kind": a.kind, "original_filename": a.original_filename, "size_bytes": a.size_bytes,
                              "added_by": people[a.added_by], "added_at": a.added_at} for a in attachments],
+            "appeals": [{"id": a.id, "note": a.note, "rejection_reason": a.rejection_reason, "submitted_by": people[a.submitted_by],
+                         "submitted_at": a.submitted_at, "decided_by": people.get(a.decided_by), "decided_at": a.decided_at,
+                         "outcome": a.outcome, "decision_note": a.decision_note,
+                         "comments": [{"id": c.id, "body": c.body, "author": people[c.author_id], "created_at": c.created_at}
+                                      for c in comments if c.appeal_id == a.id]} for a in appeals],
+            "can_appeal": _can_appeal(db, user, tx), "can_comment": _can_comment(db, user, tx),
             "can_verify": _can_verify(db, user, tx), "can_approve": _can_approve(db, user, tx),
             "can_reject": _can_reject(db, user, tx), "can_reverse": _can_reverse(db, user, tx),
             "can_attach": _can_attach(db, user, tx), "needs_chairperson": (_needs_chair(tx) and tx.status in ("submitted", "verified")

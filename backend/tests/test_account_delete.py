@@ -64,7 +64,7 @@ def test_deleting_removes_access_and_open_work_but_keeps_history(make_client, or
 
 def test_direct_grants_end_and_email_and_uid_can_be_reused(make_client, org, db, chair):
     client = login(make_client, org.chair)
-    grant(db, org.ops_member, "users.view", by=chair)
+    grant(db, org.ops_member, "org.view", by=chair)
     assert client.put(f"/api/users/{org.ops_member.id}/profile", json={"uid": "25BCS1"}).status_code == 200
     assert _delete(client, org.ops_member).json()["grants_revoked"] == 1
     db.expire_all()

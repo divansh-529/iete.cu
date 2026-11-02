@@ -57,7 +57,7 @@ def test_senior_leaders_see_everything(make_client, org, db, chair):
 
 
 def test_everyone_else_is_refused(make_client, org, db, chair):
-    grant(db, org.tech_member, "users.view", by=chair)
+    grant(db, org.tech_member, "org.view", by=chair)
     for user in (org.ops_member, org.tech_member):
         client = login(make_client, user)
         assert client.get("/api/auth/me").json()["can_view_roster"] is False

@@ -67,21 +67,21 @@ def test_position_grant_follows_the_holder(client, make_client, chair, db):
     old, new = make_user(db, "old@ietecu.in"), make_user(db, "new@ietecu.in")
     client.login("chair@ietecu.in")
     pos = _pos(client, "Secretary")
-    assert _grant(client, pos["id"], "users.view", subject_type="position").status_code == 201
+    assert _grant(client, pos["id"], "org.view", subject_type="position").status_code == 201
     assignment = _assign(client, pos["id"], old.id).json()
 
     old_client = make_client()
     old_client.login("old@ietecu.in")
-    assert old_client.get("/api/users").status_code == 200
+    assert old_client.get("/api/departments").status_code == 200
 
     r = client.post(f"/api/position-assignments/{assignment['id']}/end", json={"end_reason": "term_ended"})
     assert r.status_code == 200
-    assert old_client.get("/api/users").status_code == 403    # access gone immediately
+    assert old_client.get("/api/departments").status_code == 403    # access gone immediately
 
     _assign(client, pos["id"], new.id)
     new_client = make_client()
     new_client.login("new@ietecu.in")
-    assert new_client.get("/api/users").status_code == 200
+    assert new_client.get("/api/departments").status_code == 200
 
     history = client.get(f"/api/positions/{pos['id']}/history").json()
     assert [h["user"]["email"] for h in history] == ["new@ietecu.in", "old@ietecu.in"]
@@ -92,11 +92,11 @@ def test_department_grant_reaches_members(client, make_client, chair, db):
     member = make_user(db, "m@ietecu.in")
     client.login("chair@ietecu.in")
     dept = _dept(client, "Graphics")
-    _grant(client, dept["id"], "users.view", subject_type="department")
+    _grant(client, dept["id"], "org.view", subject_type="department")
     client.post(f"/api/departments/{dept['id']}/members", json={"user_id": member.id})
     member_client = make_client()
     member_client.login("m@ietecu.in")
-    assert member_client.get("/api/users").status_code == 200
+    assert member_client.get("/api/departments").status_code == 200
 
 
 def test_sensitive_permission_cannot_go_to_position(client, chair):
@@ -109,14 +109,14 @@ def test_sensitive_permission_cannot_go_to_position(client, chair):
 def test_cannot_grant_to_own_position(client, chair, db):
     admin = make_user(db, "admin@ietecu.in")
     grant(db, admin, "permissions.manage", chair)
-    grant(db, admin, "users.view", chair)
+    grant(db, admin, "org.view", chair)
     client.login("chair@ietecu.in")
     pos = _pos(client, "Secretary")
     _assign(client, pos["id"], admin.id)
 
     admin_client = client.__class__(client.app)
     admin_client.login("admin@ietecu.in")
-    r = _grant(admin_client, pos["id"], "users.view", subject_type="position")
+    r = _grant(admin_client, pos["id"], "org.view", subject_type="position")
     assert r.status_code == 403
 
 

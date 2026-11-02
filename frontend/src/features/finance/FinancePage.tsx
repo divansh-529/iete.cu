@@ -11,13 +11,14 @@ import { MODE_LABELS, money, TransactionList, TransactionModal } from "./Transac
 const today = () => new Date().toISOString().slice(0, 10);
 
 export function FinancePage() {
-  const { can } = useAuth();
+  const { can, me } = useAuth();
   const viewer = can("finance.view");
   const approver = can("finance.expense.verify") || can("finance.expense.approve");
   const tabs = [
-    ...(viewer ? [["accounts", "Accounts"], ["transactions", "Transactions"]] as const : []),
+    ...(viewer ? [["accounts", "Accounts"], ["transactions", "Transactions"], ["rejected", "Rejected"]] as const : []),
     ...(approver ? [["to_act", "Needs my action"]] as const : []),
     ...(can("finance.expense.submit") ? [["mine", "My expenses"]] as const : []),
+    ...(viewer || me?.can_view_roster ? [["appeals", "Appeals"]] as const : []),
     ...(viewer ? [["reconciliation", "Reconciliation"]] as const : []),
   ];
   type Tab = (typeof tabs)[number][0];
@@ -30,12 +31,14 @@ export function FinancePage() {
 
   return (
     <>
-      <PageHeader title="Finance" subtitle="An expense counts in a balance only after it is verified and approved. Posted entries are never edited; mistakes are reversed." />
+      <PageHeader title="Finance" subtitle="An entry counts in a balance only after it is approved. Posted entries are never edited; mistakes are reversed." />
       {tab && <Tabs tabs={tabs} value={tab} onChange={(t) => setParams({ tab: t })} />}
       {!tab && <Card><Empty>You don't have access to finance.</Empty></Card>}
       {tab === "accounts" && <AccountsTab />}
       {tab === "transactions" && <TransactionsTab onOpen={open} />}
-      {tab === "to_act" && <Queue view="to_act" onOpen={open} empty="Nothing is waiting for you." />}
+      {tab === "rejected" && <Queue query="status=rejected" onOpen={open} empty="No rejected transactions." />}
+      {tab === "to_act" && <Queue query="view=to_act" onOpen={open} empty="Nothing is waiting for you." />}
+      {tab === "appeals" && <Queue query="view=appeals" onOpen={open} empty="No appeals." />}
       {tab === "mine" && <MineTab onOpen={open} />}
       {tab === "reconciliation" && <ReconciliationTab />}
       {opened && <TransactionModal id={opened} onClose={close} />}
@@ -156,36 +159,26 @@ function TransactionsTab({ onOpen }: { onOpen: (id: number) => void }) {
   const { can } = useAuth();
   const accounts = useAccounts();
   const [account, setAccount] = useState("");
-  const [status, setStatus] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [recording, setRecording] = useState(false);
-  const search = new URLSearchParams(Object.entries({ account_id: account, status, start, end }).filter(([, v]) => v));
+  const search = new URLSearchParams(Object.entries({ account_id: account, status: "posted", start, end }).filter(([, v]) => v));
   const rows = useQuery({ queryKey: ["finance", "transactions", search.toString()], queryFn: () => api<Transaction[]>(`/finance/transactions?${search}`) });
   const usable = accounts.data?.filter((a) => a.active) ?? [];
   return (
     <Card title="Transactions" actions={can("finance.income.record") && usable.length > 0 && <Button onClick={() => setRecording(true)}>+ Record income</Button>}>
-      <div className="mb-4 grid gap-3 sm:grid-cols-4">
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <Field label="Account">
           <Select value={account} onChange={(e) => setAccount(e.target.value)}>
             <option value="">All</option>
             {accounts.data?.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </Select>
         </Field>
-        <Field label="Status">
-          <Select value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">All</option>
-            <option value="submitted">Waiting to verify</option>
-            <option value="verified">Waiting to approve</option>
-            <option value="posted">Posted</option>
-            <option value="rejected">Rejected</option>
-          </Select>
-        </Field>
         <Field label="From"><Input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
         <Field label="To"><Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
       </div>
       {rows.isLoading ? <Spinner /> : rows.error ? <Alert>{errorMessage(rows.error)}</Alert>
-        : <TransactionList rows={rows.data ?? []} onOpen={onOpen} empty="No transactions yet." />}
+        : <TransactionList rows={rows.data ?? []} onOpen={onOpen} empty="No posted transactions yet." />}
       {recording && (
         <MoneyModal kind="income" accounts={usable} onClose={() => setRecording(false)} onDone={onOpen} />
       )}
@@ -193,8 +186,8 @@ function TransactionsTab({ onOpen }: { onOpen: (id: number) => void }) {
   );
 }
 
-function Queue({ view, onOpen, empty }: { view: "to_act" | "mine"; onOpen: (id: number) => void; empty: string }) {
-  const rows = useQuery({ queryKey: ["finance", view], queryFn: () => api<Transaction[]>(`/finance/transactions?view=${view}`) });
+function Queue({ query, onOpen, empty }: { query: string; onOpen: (id: number) => void; empty: string }) {
+  const rows = useQuery({ queryKey: ["finance", query], queryFn: () => api<Transaction[]>(`/finance/transactions?${query}`) });
   if (rows.isLoading) return <Spinner />;
   if (rows.error) return <Alert>{errorMessage(rows.error)}</Alert>;
   return <Card><TransactionList rows={rows.data ?? []} onOpen={onOpen} empty={empty} /></Card>;
@@ -209,7 +202,7 @@ function MineTab({ onOpen }: { onOpen: (id: number) => void }) {
         <Button disabled={!names.data?.length} title={names.data?.length ? undefined : "An account has to be added first"}
                 onClick={() => setSubmitting(true)}>+ Submit an expense</Button>
       </div>
-      <Queue view="mine" onOpen={onOpen} empty="You haven't submitted any expenses." />
+      <Queue query="view=mine" onOpen={onOpen} empty="You haven't submitted any expenses." />
       {submitting && names.data && <MoneyModal kind="expense" accounts={names.data} onClose={() => setSubmitting(false)} onDone={onOpen} />}
     </>
   );

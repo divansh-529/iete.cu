@@ -15,6 +15,7 @@ from app.org.models import Department, DepartmentMembership, MemberProfile, Posi
 from app.users.models import User
 
 ALL_DEPARTMENTS_POSITIONS = {"Joint Secretary", "Secretary", "Vice Chairperson", "Chairperson"}
+ACCOUNTS_POSITIONS = {"Joint Secretary", "Vice Chairperson", "Chairperson"}
 SHOWN_STATUSES = ("active", "invited")      # not suspended, deactivated, deleted or still proposed
 COLUMNS = (("S.No", 7), ("Name", 26), ("Email", 34), ("Uid", 16), ("Mobile No", 16), ("Department", 26), ("Academic Block", 16))
 TITLE_FILL, HEADER_FILL = PatternFill("solid", fgColor="D9E1F2"), PatternFill("solid", fgColor="1F3864")
@@ -37,6 +38,11 @@ def led_departments(db: Session, user: User) -> set[int]:
 
 def can_view_roster(db: Session, user: User) -> bool:
     return sees_all(db, user) or bool(led_departments(db, user))
+
+
+def can_view_accounts(db: Session, user: User) -> bool:
+    """Team accounts, by position only (the Chairperson's rule). Each action on an account also needs its own permission."""
+    return user.is_super_admin or any(p.title in ACCOUNTS_POSITIONS for p in _held(db, user))
 
 
 def _person(user: User, profile: MemberProfile | None, department: str, position: str | None, lead: bool) -> dict:

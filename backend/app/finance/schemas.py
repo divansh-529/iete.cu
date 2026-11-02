@@ -68,6 +68,10 @@ class ReasonIn(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
 
 
+class CommentIn(BaseModel):
+    body: str = Field(min_length=1, max_length=1000)
+
+
 class TransactionOut(BaseModel):
     id: int
     code: str
@@ -88,6 +92,7 @@ class TransactionOut(BaseModel):
     submitted_by: PersonRef
     submitted_at: datetime
     reversed_by_code: str | None
+    for_chairperson: bool
 
 
 class AttachmentOut(BaseModel):
@@ -97,6 +102,26 @@ class AttachmentOut(BaseModel):
     size_bytes: int
     added_by: PersonRef
     added_at: datetime
+
+
+class AppealCommentOut(BaseModel):
+    id: int
+    body: str
+    author: PersonRef
+    created_at: datetime
+
+
+class AppealOut(BaseModel):
+    id: int
+    note: str
+    rejection_reason: str | None
+    submitted_by: PersonRef
+    submitted_at: datetime
+    decided_by: PersonRef | None
+    decided_at: datetime | None
+    outcome: str | None
+    decision_note: str | None
+    comments: list[AppealCommentOut]
 
 
 class TransactionDetailOut(TransactionOut):
@@ -114,6 +139,9 @@ class TransactionDetailOut(TransactionOut):
     can_reverse: bool
     can_attach: bool
     needs_chairperson: bool
+    appeals: list[AppealOut]
+    can_appeal: bool
+    can_comment: bool
 
 
 class DownloadOut(BaseModel):

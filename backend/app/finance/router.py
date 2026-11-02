@@ -1,25 +1,49 @@
+from collections.abc import Callable
 from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile
 from sqlalchemy.orm import Session
 
-from app.auth.deps import require, require_any, require_in_service
+from app.auth.deps import current_user, require, require_in_service
 from app.core.db import get_db
 from app.core.errors import forbidden
 from app.documents.router import _read
 from app.finance import service
-from app.finance.access import can_record_members, can_view_members
-from app.finance.schemas import (AccountIn, AccountOut, AttachmentKind, CategoryIn, CategoryOut, DownloadOut, ExpenseIn,
+from app.finance.access import can_record_members, can_view_members, finance_can
+from app.finance.schemas import (AccountIn, AccountOut, AttachmentKind, CategoryIn, CategoryOut, CommentIn, DownloadOut, ExpenseIn,
                                  IncomeIn, MembershipIn, MembershipOut, MembershipSummaryOut, PaidMemberIn, PayIn, ReasonIn,
                                  ReconciliationIn, ReconciliationOut, TransactionDetailOut, TransactionOut, TransferIn,
                                  UploadOut)
+from app.permissions.engine import has_any
 from app.users.models import User
 
 router = APIRouter(prefix="/api", tags=["finance"])
 
 # People who submit an expense always see their own, so transaction routes only require a signed-in
 # user and the service checks finance.* or that involvement.
+
+
+def _finance(permission: str) -> Callable:
+    """`require`, also allowing the Treasurer and Joint Secretary by position."""
+
+    def dependency(user: User = Depends(current_user), db: Session = Depends(get_db)) -> User:
+        if not finance_can(db, user, permission):
+            raise forbidden()
+        return user
+
+    dependency.required_permission = permission  # type: ignore[attr-defined]
+    return dependency
+
+
+def _can_submit(user: User = Depends(current_user), db: Session = Depends(get_db)) -> User:
+    """Holds it at some scope; the service checks the department or event."""
+    if not (has_any(db, user, "finance.expense.submit") or finance_can(db, user, "finance.expense.submit")):
+        raise forbidden()
+    return user
+
+
+_can_submit.required_permission = "finance.expense.submit"  # type: ignore[attr-defined]
 
 
 def _viewer(user: User = Depends(require_in_service("membership.view")), db: Session = Depends(get_db)) -> User:
@@ -35,31 +59,31 @@ def _keeper(user: User = Depends(require_in_service("membership.record")), db: S
 
 
 @router.get("/finance/accounts", response_model=list[AccountOut])
-def accounts(_: User = Depends(require("finance.view")), db: Session = Depends(get_db)):
+def accounts(_: User = Depends(_finance("finance.view")), db: Session = Depends(get_db)):
     return service.accounts(db)
 
 
 @router.get("/finance/account-names", response_model=list[dict[str, int | str]])
-def account_names(_: User = Depends(require_any("finance.expense.submit")), db: Session = Depends(get_db)):
+def account_names(_: User = Depends(_can_submit), db: Session = Depends(get_db)):
     """Just enough for the expense form, without showing balances to people who can't view them."""
     return [{"id": a["id"], "name": a["name"]} for a in service.accounts(db) if a["active"]]
 
 
 @router.post("/finance/accounts", status_code=204)
-def create_account(body: AccountIn, actor: User = Depends(require("finance.accounts.manage")), db: Session = Depends(get_db)):
+def create_account(body: AccountIn, actor: User = Depends(_finance("finance.accounts.manage")), db: Session = Depends(get_db)):
     service.save_account(db, actor, body)
     return Response(status_code=204)
 
 
 @router.put("/finance/accounts/{account_id}", status_code=204)
-def update_account(account_id: int, body: AccountIn, actor: User = Depends(require("finance.accounts.manage")),
+def update_account(account_id: int, body: AccountIn, actor: User = Depends(_finance("finance.accounts.manage")),
                    db: Session = Depends(get_db)):
     service.save_account(db, actor, body, account_id)
     return Response(status_code=204)
 
 
 @router.get("/finance/transactions", response_model=list[TransactionOut])
-def transactions(view: Literal["all", "mine", "to_act"] = "all", account_id: int | None = None, event_id: int | None = None,
+def transactions(view: Literal["all", "mine", "to_act", "appeals"] = "all", account_id: int | None = None, event_id: int | None = None,
                  status: str | None = None, start: date | None = None, end: date | None = None,
                  limit: int = Query(default=100, ge=1, le=200), user: User = Depends(require_in_service("finance.view")),
                  db: Session = Depends(get_db)):
@@ -72,23 +96,24 @@ def transaction(transaction_id: int, user: User = Depends(require_in_service("fi
 
 
 @router.post("/finance/income", response_model=TransactionDetailOut, status_code=201)
-def income(body: IncomeIn, actor: User = Depends(require("finance.income.record")), db: Session = Depends(get_db)):
+def income(body: IncomeIn, actor: User = Depends(_finance("finance.income.record")), db: Session = Depends(get_db)):
     return service.detail(db, actor, service.record_income(db, actor, body).id)
 
 
 @router.post("/finance/expenses", response_model=TransactionDetailOut, status_code=201)
-def expense(body: ExpenseIn, actor: User = Depends(require_any("finance.expense.submit")), db: Session = Depends(get_db)):
-    """The Chairperson's own expense posts at once; anyone else's waits to be verified and approved."""
+def expense(body: ExpenseIn, actor: User = Depends(_can_submit), db: Session = Depends(get_db)):
+    """The Chairperson's own expense posts at once; anyone else's waits to be verified and approved, or for
+    the Chairperson if it is the Treasurer's or Joint Secretary's."""
     return service.detail(db, actor, service.submit_expense(db, actor, body).id)
 
 
 @router.post("/finance/transfers", response_model=TransactionDetailOut, status_code=201)
-def transfer(body: TransferIn, actor: User = Depends(require("finance.accounts.manage")), db: Session = Depends(get_db)):
+def transfer(body: TransferIn, actor: User = Depends(_finance("finance.accounts.manage")), db: Session = Depends(get_db)):
     return service.detail(db, actor, service.transfer(db, actor, body).id)
 
 
 @router.post("/finance/expenses/{transaction_id}/verify", response_model=TransactionDetailOut)
-def verify(transaction_id: int, actor: User = Depends(require("finance.expense.verify")), db: Session = Depends(get_db)):
+def verify(transaction_id: int, actor: User = Depends(_finance("finance.expense.verify")), db: Session = Depends(get_db)):
     service.verify(db, actor, transaction_id)
     return service.detail(db, actor, transaction_id)
 
@@ -104,6 +129,20 @@ def reject(transaction_id: int, body: ReasonIn, actor: User = Depends(require_in
            db: Session = Depends(get_db)):
     service.reject(db, actor, transaction_id, body.reason)
     return service.detail(db, actor, transaction_id)
+
+
+@router.post("/finance/transactions/{transaction_id}/appeal", response_model=TransactionDetailOut, status_code=201)
+def appeal(transaction_id: int, note: str = Form(), files: list[UploadFile] = File(),
+           user: User = Depends(require_in_service("finance.view")), db: Session = Depends(get_db)):
+    service.submit_appeal(db, user, transaction_id, note, [(f.filename or "", _read(f)) for f in files])
+    return service.detail(db, user, transaction_id)
+
+
+@router.post("/finance/transactions/{transaction_id}/appeal/comments", response_model=TransactionDetailOut, status_code=201)
+def appeal_comment(transaction_id: int, body: CommentIn, user: User = Depends(require_in_service("finance.view")),
+                   db: Session = Depends(get_db)):
+    service.comment_appeal(db, user, transaction_id, body.body)
+    return service.detail(db, user, transaction_id)
 
 
 @router.post("/finance/transactions/{transaction_id}/reverse", response_model=TransactionDetailOut)
@@ -127,12 +166,12 @@ def attachment(transaction_id: int, attachment_id: int, inline: bool = False,
 
 
 @router.get("/finance/reconciliations", response_model=list[ReconciliationOut])
-def reconciliations(_: User = Depends(require("finance.view")), db: Session = Depends(get_db)):
+def reconciliations(_: User = Depends(_finance("finance.view")), db: Session = Depends(get_db)):
     return service.reconciliations(db)
 
 
 @router.post("/finance/reconciliations", status_code=204)
-def reconcile(body: ReconciliationIn, actor: User = Depends(require("finance.reconcile")), db: Session = Depends(get_db)):
+def reconcile(body: ReconciliationIn, actor: User = Depends(_finance("finance.reconcile")), db: Session = Depends(get_db)):
     service.reconcile(db, actor, body)
     return Response(status_code=204)
 

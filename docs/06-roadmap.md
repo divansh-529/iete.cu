@@ -90,6 +90,8 @@ gantt
 
 > **Leaders and tasks (2026-11-02):** anyone holding a Lead position, or Joint Secretary, Secretary, Vice Chairperson or Chairperson, can read every task and its history. Changing or commenting on a task still needs the usual access.
 
+> **Treasurer, Joint Secretary and appeals (2026-11-02):** holding either position gives finance management and the paid members list. Their expenses, income and transfers wait for the Chairperson alone (membership fees, opening balances and reconciliations don't), and they can appeal a rejection with documents. Only the person appealing uploads; all leaders read and comment; the Chairperson decides. Team accounts is visible only to the Chairperson, Vice Chairperson and Joint Secretary, and `users.view` is retired.
+
 ## Phase 4 — Documents (≈2 weeks) ✅ built
 
 > **Status (2026-11-01):** Phase 4 is implemented (migrations `0007` and `0008`, `app/documents`). It needs file storage settings in production; see [09-deployment.md](09-deployment.md). Differences from the plan below:

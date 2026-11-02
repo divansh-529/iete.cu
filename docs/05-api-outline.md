@@ -16,7 +16,7 @@ While `must_change_password` is true, every other endpoint returns `403 PASSWORD
 ## Users & profiles
 | Method | Path | Perm |
 |---|---|---|
-| GET | `/users` | `users.view` |
+| GET | `/users` | Chairperson, Vice Chairperson or Joint Secretary (by position) |
 | POST | `/users` (with invite link or temporary password) | `users.create` |
 | PATCH | `/users/{id}` | `users.edit` |
 | POST | `/users/{id}/suspend` · `/reactivate` · `/deactivate` | `users.suspend` |

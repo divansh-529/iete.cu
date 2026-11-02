@@ -11,7 +11,7 @@ export function DashboardPage() {
   const { me, can } = useAuth();
   const counts = useQuery({
     queryKey: ["users", "counts"],
-    enabled: can("users.view"),
+    enabled: !!me?.can_view_accounts,
     queryFn: async () => {
       const statuses = ["active", "invited", "suspended"] as const;
       const pages = await Promise.all(statuses.map((s) => api<UserPage>(`/users?status=${s}&limit=1`)));

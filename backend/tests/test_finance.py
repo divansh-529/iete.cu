@@ -149,8 +149,10 @@ def test_posted_transactions_cannot_be_changed_only_reversed(make_client, org, d
     chair, treasurer, vc = (login(make_client, u) for u in (org.chair, org.secretary, org.vc))
     account = _account(chair)
     r = _income(treasurer, account)
-    assert r.status_code == 201 and r.json()["status"] == "posted", r.text
-    tx = r.json()
+    assert r.status_code == 201 and r.json()["status"] == "submitted", r.text
+    assert _balance(chair, account) == 1000
+    tx = chair.post(f"/api/finance/expenses/{r.json()['id']}/approve").json()
+    assert tx["status"] == "posted"
     assert _balance(chair, account) == 1200
 
     for sql in ("UPDATE fin_transactions SET amount = 1", "DELETE FROM fin_transactions"):
@@ -365,7 +367,7 @@ def test_member_list_is_only_for_named_positions(make_client, org, db, chair):
     assert treasurer.post("/api/memberships/paid", json={"holder_name": "Asha Rao", "father_name": "Ravi Rao", "membership_no": "9",
                                                          "course": "BE", "study_year": "2", "valid_to": "2027-03-31"}).status_code == 201
 
-    # Secretary and Vice Chair (by position) and the Chairperson can read it, but not change it.
+    # Vice Chair (by position) and the Chairperson can read it; the Joint Secretary also keeps it.
     joint = make_user(db, "js@ietecu.in")
     _hold(db, joint, "Joint Secretary", chair)
     readers = [vc, login(make_client, joint), chairperson]
@@ -373,9 +375,9 @@ def test_member_list_is_only_for_named_positions(make_client, org, db, chair):
         assert client.get("/api/auth/me").json()["can_view_members"] is True
         assert [m["father_name"] for m in client.get("/api/memberships").json()] == ["Ravi Rao"]
         assert client.get("/api/memberships/summary").status_code == 200
-    for client in readers[:2]:
-        assert client.get("/api/auth/me").json()["can_record_members"] is False
-        assert _upload(client, HEADER + "A B,C D,10,BE,1,31/03/2027\n").status_code == 403
+    assert vc.get("/api/auth/me").json()["can_record_members"] is False
+    assert _upload(vc, HEADER + "A B,C D,10,BE,1,31/03/2027\n").status_code == 403
+    assert readers[1].get("/api/auth/me").json()["can_record_members"] is True
 
     # Everyone else is refused, even with the permission granted directly or a Lead role.
     outsider = make_user(db, "outsider@ietecu.in")

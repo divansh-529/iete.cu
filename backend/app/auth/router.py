@@ -11,8 +11,8 @@ from app.auth.schemas import (AcceptInviteIn, ChangePasswordIn, EffectivePermiss
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.request_context import request_ip
-from app.finance.access import can_record_members, can_view_members
-from app.org.roster import can_view_roster
+from app.finance.access import KEEPER_PERMISSIONS, can_record_members, can_view_members, is_keeper
+from app.org.roster import can_view_accounts, can_view_roster
 from app.org.service import profile_complete
 from app.permissions.catalogue import CATALOGUE
 from app.permissions.engine import effective_grants
@@ -49,10 +49,13 @@ def build_me(db: Session, user: User) -> MeOut:
                 seen.add(key)
                 perms.append(EffectivePermission(code=g.permission, scope_type=g.scope_type,
                                                  scope_id=g.scope_id))
+        if user.status == "active" and is_keeper(db, user):
+            perms.extend(EffectivePermission(code=code, scope_type="global", scope_id=None)
+                         for code in sorted(KEEPER_PERMISSIONS) if (code, "global", None) not in seen)
     return MeOut(user=UserOut.model_validate(user), permissions=perms,
                  all_permissions=user.is_super_admin, profile_complete=profile_complete(db, user),
                  can_view_members=can_view_members(db, user), can_record_members=can_record_members(db, user),
-                 can_view_roster=can_view_roster(db, user))
+                 can_view_roster=can_view_roster(db, user), can_view_accounts=can_view_accounts(db, user))
 
 
 def _client(request: Request) -> tuple[str | None, str | None]:

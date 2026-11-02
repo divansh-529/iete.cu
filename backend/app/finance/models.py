@@ -2,7 +2,8 @@
 
 Amounts are always positive and is_credit gives the direction, so a book balance is the opening
 balance plus posted credits minus posted debits. It is computed, never stored. A posted or rejected
-transaction can't change (DB trigger); mistakes are corrected with a reversal.
+transaction can't change (DB trigger), except that a rejected one can go under appeal; mistakes are
+corrected with a reversal.
 """
 import uuid
 from datetime import date, datetime
@@ -16,7 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.db import Base
 
 TXN_TYPES = ("income", "expense", "transfer_in", "transfer_out", "reversal")
-TXN_STATUSES = ("submitted", "verified", "posted", "rejected")
+TXN_STATUSES = ("submitted", "verified", "posted", "rejected", "appealed")
 PAYMENT_MODES = ("cash", "upi", "bank_transfer", "cheque", "card", "other")
 ATTACHMENT_KINDS = ("bill", "invoice", "receipt", "proof", "other")
 MEMBERSHIP_STATUSES = ("pending", "paid", "waived", "refunded", "cancelled")
@@ -132,6 +133,37 @@ class FinAttachment(Base):
     sha256: Mapped[bytes] = mapped_column(LargeBinary)
     added_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class FinAppeal(Base):
+    """One round of appeal against a rejection. The rejection reason is copied here because a further
+    rejection replaces it on the transaction."""
+    __tablename__ = "fin_appeals"
+    __table_args__ = (
+        CheckConstraint("outcome IN ('approved', 'rejected')", name="fin_appeals_outcome_check"),
+        Index("fin_appeals_one_open", "transaction_id", unique=True, postgresql_where=text("decided_at IS NULL")),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    transaction_id: Mapped[int] = mapped_column(ForeignKey("fin_transactions.id"), index=True)
+    note: Mapped[str] = mapped_column(Text)
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    submitted_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    outcome: Mapped[str | None] = mapped_column(Text)
+    decision_note: Mapped[str | None] = mapped_column(Text)
+
+
+class FinAppealComment(Base):
+    __tablename__ = "fin_appeal_comments"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    appeal_id: Mapped[int] = mapped_column(ForeignKey("fin_appeals.id"), index=True)
+    body: Mapped[str] = mapped_column(Text)
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class FinReconciliation(Base):

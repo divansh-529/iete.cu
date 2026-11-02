@@ -37,3 +37,4 @@ class MeOut(BaseModel):
     can_view_members: bool                  # the membership list goes by position, not grants
     can_record_members: bool
     can_view_roster: bool                   # the team list, also by position
+    can_view_accounts: bool                 # team accounts, also by position

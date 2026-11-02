@@ -28,6 +28,7 @@ export interface Me {
   can_view_members: boolean;
   can_record_members: boolean;
   can_view_roster: boolean;
+  can_view_accounts: boolean;
 }
 
 export interface UserPage {
@@ -481,10 +482,24 @@ export interface Transaction {
   event: Ref | null;
   department: Ref | null;
   membership_id: number | null;
-  status: "submitted" | "verified" | "posted" | "rejected";
+  status: "submitted" | "verified" | "posted" | "rejected" | "appealed";
   submitted_by: PersonRef;
   submitted_at: string;
   reversed_by_code: string | null;
+  for_chairperson: boolean;
+}
+
+export interface Appeal {
+  id: number;
+  note: string;
+  rejection_reason: string | null;
+  submitted_by: PersonRef;
+  submitted_at: string;
+  decided_by: PersonRef | null;
+  decided_at: string | null;
+  outcome: "approved" | "rejected" | null;
+  decision_note: string | null;
+  comments: { id: number; body: string; author: PersonRef; created_at: string }[];
 }
 
 export interface TransactionDetail extends Transaction {
@@ -502,6 +517,9 @@ export interface TransactionDetail extends Transaction {
   can_reverse: boolean;
   can_attach: boolean;
   needs_chairperson: boolean;
+  appeals: Appeal[];
+  can_appeal: boolean;
+  can_comment: boolean;
 }
 
 export interface Reconciliation {

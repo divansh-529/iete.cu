@@ -17,7 +17,7 @@ export function UserDetailPage() {
   const account = useQuery({
     queryKey: ["user", id],
     queryFn: () => api<User>(`/users/${id}`),
-    enabled: can("users.view"),
+    enabled: !!me?.can_view_accounts,
   });
   const org = useQuery({
     queryKey: ["user-org", id],
@@ -33,7 +33,7 @@ export function UserDetailPage() {
 
   return (
     <>
-      {can("users.view")
+      {me?.can_view_accounts
         ? <Link to="/app/users" className="text-sm text-brand-600 hover:underline">← Team accounts</Link>
         : <Link to="/app/org" className="text-sm text-brand-600 hover:underline">← Organisation</Link>}
       <PageHeader title={person.full_name} subtitle={person.email} />
