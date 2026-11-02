@@ -88,6 +88,8 @@ gantt
 - Notifications table and polling: task assigned, task due soon (nightly job), task reviewed.
 - **Exit:** a full event can be created and approved, staffed and tasked, and members can submit work that their Lead reviews.
 
+> **Leaders and tasks (2026-11-02):** anyone holding a Lead position, or Joint Secretary, Secretary, Vice Chairperson or Chairperson, can read every task and its history. Changing or commenting on a task still needs the usual access.
+
 ## Phase 4 — Documents (≈2 weeks) ✅ built
 
 > **Status (2026-11-01):** Phase 4 is implemented (migrations `0007` and `0008`, `app/documents`). It needs file storage settings in production; see [09-deployment.md](09-deployment.md). Differences from the plan below:

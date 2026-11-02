@@ -101,3 +101,38 @@ def test_comments_and_due_soon_reminders(db, make_client, org):
     assert page["unread"] >= 2
     assert member.post("/api/notifications/read", json={}).status_code == 204
     assert member.get("/api/notifications").json()["unread"] == 0
+
+
+def test_every_leader_can_read_any_task_but_not_change_it(make_client, org, db):
+    chair, lead, member = (login(make_client, u) for u in (org.chair, org.ops_lead, org.ops_member))
+    # Nothing to do with Operations: another department, created by the Chairperson for someone else.
+    tid = _task(chair, department_id=org.tech.id).json()["id"]
+    assert chair.put(f"/api/tasks/{tid}/assignees", json={"user_ids": [org.tech_member.id]}).status_code < 300
+
+    assert tid in [t["id"] for t in lead.get("/api/tasks").json()]
+    assert tid in [t["id"] for t in lead.get("/api/tasks", params={"department_id": org.tech.id}).json()]
+    r = lead.get(f"/api/tasks/{tid}")
+    assert r.status_code == 200 and len(r.json()["history"]) >= 1
+    assert r.json()["actions"] == []
+
+    # Reading only: no comments, edits or reassigning from outside the task.
+    assert lead.post(f"/api/tasks/{tid}/comments", json={"body": "Hello"}).status_code == 404
+    assert lead.put(f"/api/tasks/{tid}", json={"title": "Changed title", "department_id": org.tech.id}).status_code == 404
+    assert lead.put(f"/api/tasks/{tid}/assignees", json={"user_ids": [org.ops_lead.id]}).status_code == 404
+
+    # A finished task stays readable, and ordinary members still see only their own department's.
+    assert member.get(f"/api/tasks/{tid}").status_code == 404
+    assert tid not in [t["id"] for t in member.get("/api/tasks").json()]
+    assert login(make_client, org.vc).get(f"/api/tasks/{tid}").status_code == 200
+
+    # Leaving the Lead position ends it.
+    from datetime import date
+
+    from sqlalchemy import select
+
+    from app.org.models import Position, PositionAssignment
+    pa = db.scalar(select(PositionAssignment).join(Position, Position.id == PositionAssignment.position_id)
+                   .where(PositionAssignment.user_id == org.ops_lead.id, Position.is_lead))
+    pa.valid_to, pa.end_reason, pa.ended_by = date.today(), "resigned", org.chair.id
+    db.commit()
+    assert lead.get(f"/api/tasks/{tid}").status_code == 404

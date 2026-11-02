@@ -19,7 +19,7 @@ export function TasksPage() {
   const [creating, setCreating] = useState(false);
   return (
     <>
-      <PageHeader title="Tasks" subtitle="Work assigned to you, work waiting for your review, and each department's board."
+      <PageHeader title="Tasks" subtitle="Work assigned to you, work waiting for your review, and each department's board. Leaders can see every task under All tasks."
                   actions={can("tasks.create") && <Button onClick={() => setCreating(true)}>+ New task</Button>} />
       <Tabs tabs={TABS} value={tab} onChange={(t) => setParams({ tab: t })} />
       {tab === "mine" && <ListTab view="mine" empty="Nothing assigned to you right now." />}

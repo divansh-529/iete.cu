@@ -217,10 +217,12 @@ function CommentsCard({ t, act }: { t: TaskDetail; act: Act }) {
           </li>
         ))}
       </ul>
-      <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); act("/comments", "POST", { body }).then(() => setBody("")).catch(() => undefined); }}>
+      {t.actions.includes("comment") && (
+        <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); act("/comments", "POST", { body }).then(() => setBody("")).catch(() => undefined); }}>
         <Input required placeholder="Ask a question or post an update…" value={body} onChange={(e) => setBody(e.target.value)} />
         <Button type="submit" variant="secondary">Post</Button>
       </form>
+      )}
     </Card>
   );
 }

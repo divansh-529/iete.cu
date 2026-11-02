@@ -27,6 +27,7 @@ from app.events.service import CLOSED as EVENT_CLOSED
 from app.events.service import event_scope, visible_event
 from app.notifications.service import notify
 from app.org.models import Department
+from app.org.roster import can_view_roster
 from app.org.service import active_team_user, department_names, people_by_id
 from app.permissions.engine import Scope, can, department_scope, visible_department_ids
 from app.tasks.models import (Task, TaskAssignee, TaskComment, TaskDependency, TaskStatusHistory,
@@ -83,6 +84,10 @@ def _involved(user: User, c: _Ctx) -> bool:
         c.event is not None and c.event.owner_id == user.id)
 
 
+def _works_on(db: Session, user: User, c: _Ctx) -> bool:
+    return _involved(user, c) or can(db, user, "tasks.view", c.scope)
+
+
 def _can_review(db: Session, user: User, c: _Ctx) -> bool:
     t = c.task
     designated = t.reviewer_id == user.id or (t.reviewer_id is None and can(db, user, "tasks.review", c.scope))
@@ -92,7 +97,7 @@ def _can_review(db: Session, user: User, c: _Ctx) -> bool:
 
 
 def actions(db: Session, user: User, c: _Ctx) -> list[str]:
-    t, result = c.task, ["comment"]
+    t, result = c.task, ["comment"] if _works_on(db, user, c) else []
     open_ = t.status not in DONE
     if open_ and (t.created_by == user.id or _manages(db, user, c.scope, c.event, "tasks.create")):
         result.append("edit")
@@ -110,12 +115,14 @@ def actions(db: Session, user: User, c: _Ctx) -> list[str]:
     return result
 
 
-def _visible(db: Session, user: User, task_id: int) -> _Ctx:
+def _visible(db: Session, user: User, task_id: int, read_only: bool = False) -> _Ctx:
+    """`read_only` also lets in every leader (any Lead or senior position): they can read any task
+    and its history, but only those working on it can change or discuss it."""
     task = db.get(Task, task_id)
     if task is None:
         raise not_found("Task")
     c = _Ctx(db, task)
-    if not (_involved(user, c) or can(db, user, "tasks.view", c.scope)):
+    if not (_works_on(db, user, c) or (read_only and can_view_roster(db, user))):
         raise not_found("Task")
     return c
 
@@ -330,7 +337,8 @@ def list_tasks(db: Session, user: User, view: str, department_id: int | None, ev
     elif view == "review":
         stmt = stmt.where(Task.reviewer_id == user.id, Task.status.in_(("submitted", "under_review")))
     else:
-        visible = visible_department_ids(db, user, "tasks.view")
+        # Leaders see every task, whoever assigned it and whoever it is assigned to.
+        visible = None if can_view_roster(db, user) else visible_department_ids(db, user, "tasks.view")
         if visible is not None:
             conditions = [Task.id.in_(mine), Task.reviewer_id == user.id, Task.created_by == user.id,
                           Task.event_id.in_(select(Event.id).where(Event.owner_id == user.id))]
@@ -381,7 +389,7 @@ def summaries(db: Session, tasks: list[Task]) -> list[dict]:
 
 
 def detail(db: Session, user: User, task_id: int) -> dict:
-    c = _visible(db, user, task_id)
+    c = _visible(db, user, task_id, read_only=True)
     t = c.task
     deps = db.execute(select(Task.id, Task.title, Task.status)
                       .join(TaskDependency, TaskDependency.depends_on_task_id == Task.id)
