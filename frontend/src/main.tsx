@@ -23,6 +23,7 @@ import { EventsPage } from "./features/events/EventsPage";
 import { DepartmentDetailPage } from "./features/org/DepartmentDetailPage";
 import { OrgPage } from "./features/org/OrgPage";
 import { PositionDetailPage } from "./features/org/PositionDetailPage";
+import { TeamListPage } from "./features/org/TeamListPage";
 import { RolesPage } from "./features/roles/RolesPage";
 import { TaskDetailPage } from "./features/tasks/TaskDetailPage";
 import { TasksPage } from "./features/tasks/TasksPage";
@@ -73,6 +74,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="scores/people/:id" element={<PersonScoresPage />} />
               <Route path="users" element={<UsersPage />} />
               <Route path="users/:id" element={<UserDetailPage />} />
+              <Route path="team" element={<TeamListPage />} />
               <Route path="org" element={<OrgPage />} />
               <Route path="org/departments/:id" element={<DepartmentDetailPage />} />
               <Route path="org/positions/:id" element={<PositionDetailPage />} />

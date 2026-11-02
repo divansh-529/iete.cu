@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.db import get_db
 from app.core.request_context import request_ip
 from app.finance.access import can_record_members, can_view_members
+from app.org.roster import can_view_roster
 from app.org.service import profile_complete
 from app.permissions.catalogue import CATALOGUE
 from app.permissions.engine import effective_grants
@@ -50,7 +51,8 @@ def build_me(db: Session, user: User) -> MeOut:
                                                  scope_id=g.scope_id))
     return MeOut(user=UserOut.model_validate(user), permissions=perms,
                  all_permissions=user.is_super_admin, profile_complete=profile_complete(db, user),
-                 can_view_members=can_view_members(db, user), can_record_members=can_record_members(db, user))
+                 can_view_members=can_view_members(db, user), can_record_members=can_record_members(db, user),
+                 can_view_roster=can_view_roster(db, user))
 
 
 def _client(request: Request) -> tuple[str | None, str | None]:

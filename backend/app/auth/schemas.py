@@ -36,3 +36,4 @@ class MeOut(BaseModel):
     profile_complete: bool                  # false sends a team member to the profile form
     can_view_members: bool                  # the membership list goes by position, not grants
     can_record_members: bool
+    can_view_roster: bool                   # the team list, also by position

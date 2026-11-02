@@ -27,6 +27,7 @@ export interface Me {
   profile_complete: boolean;
   can_view_members: boolean;
   can_record_members: boolean;
+  can_view_roster: boolean;
 }
 
 export interface UserPage {
@@ -544,4 +545,22 @@ export interface MembershipSummary {
   by_status: Partial<Record<MembershipRecord["status"], number>>;
   by_category: { name: string; count: number }[];
   fees_collected: string;
+}
+
+export interface RosterPerson {
+  user_id: number;
+  name: string;
+  email: string;
+  uid: string | null;
+  mobile: string | null;
+  department: string;
+  block: string | null;
+  position: string | null;
+  is_lead: boolean;
+}
+
+export interface RosterGroup {
+  id: number | null;
+  name: string;
+  people: RosterPerson[];
 }

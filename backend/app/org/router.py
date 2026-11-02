@@ -1,15 +1,17 @@
-from fastapi import APIRouter, Depends, Query
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth.deps import current_user, require, require_any, require_any_of
+from app.auth.deps import current_user, require, require_any, require_any_of, require_in_service
 from app.core.db import get_db
-from app.org import service
+from app.org import roster, service
 from app.org.models import Term
 from app.org.schemas import (AssignIn, AssignmentOut, ChartNode, DeleteDepartmentIn, DepartmentDeletedOut,
                              DepartmentDetailOut, DepartmentIn, DepartmentOut, EndAssignmentIn, EndMembershipIn, MemberIn, MembershipOut,
                              PersonRef, DeletePositionIn, PositionDeletedOut, PositionIn, PositionOut, ProfileIn, ProfileOut, ReasonIn, SelfProfileIn,
-                             TermIn, TermOut, TransferIn, UserOrgOut)
+                             RosterGroup, TermIn, TermOut, TransferIn, UserOrgOut)
 from app.permissions.engine import department_scope, ensure, visible_department_ids
 from app.users.models import User
 
@@ -21,6 +23,20 @@ router = APIRouter(prefix="/api", tags=["organisation"])
 @router.get("/org/chart", response_model=list[ChartNode])
 def org_chart(user: User = Depends(require_any("org.view")), db: Session = Depends(get_db)):
     return service.chart(db, visible_department_ids(db, user, "org.view"))
+
+
+# The team list goes by position held, so the routes only need a signed-in user and roster.py decides.
+@router.get("/org/roster", response_model=list[RosterGroup])
+def org_roster(user: User = Depends(require_in_service("org.view")), db: Session = Depends(get_db)):
+    return roster.groups(db, user)
+
+
+@router.get("/org/roster/export")
+def org_roster_export(department_id: int | None = None, user: User = Depends(require_in_service("org.view")),
+                      db: Session = Depends(get_db)):
+    content, filename = roster.export(db, user, department_id)
+    return Response(content, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"})
 
 
 @router.get("/org/people", response_model=list[PersonRef])

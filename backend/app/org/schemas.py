@@ -115,6 +115,24 @@ class PositionDeletedOut(BaseModel):
     reports_moved: int
 
 
+class RosterPerson(BaseModel):
+    user_id: int
+    name: str
+    email: str
+    uid: str | None
+    mobile: str | None
+    department: str
+    block: str | None
+    position: str | None
+    is_lead: bool
+
+
+class RosterGroup(BaseModel):
+    id: int | None                      # empty for Leadership, which has no department
+    name: str
+    people: list[RosterPerson]
+
+
 class ReasonIn(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
 

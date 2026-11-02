@@ -42,6 +42,20 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
   return data as T;
 }
 
+/** Fetches a file from the API and saves it through the browser. */
+export async function apiDownload(path: string, filename: string): Promise<void> {
+  const res = await fetch(`/api${path}`, { credentials: "same-origin" });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null))?.error ?? {};
+    throw new ApiError(res.status, err.code ?? "UNKNOWN", err.message ?? "Something went wrong.", err.details);
+  }
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(await res.blob());
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 export function errorMessage(e: unknown): string {
   if (e instanceof ApiError) {
     if (e.details?.length) return e.details.map((d) => `${d.field}: ${d.message}`).join("; ");

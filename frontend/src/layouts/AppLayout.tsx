@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Navigate, NavLink, Outlet, useLocation } from "react-router";
 import { api } from "../api/client";
-import type { MemberProposal } from "../api/types";
+import type { Me, MemberProposal } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { BrandLogo } from "../components/Brand";
 import { Button, cx, Modal, Spinner } from "../components/ui";
@@ -13,7 +13,7 @@ interface NavItem {
   label: string;
   icon: string;  // SVG path, 24×24 outline
   permission?: string | string[];   // any of these
-  members?: boolean;                // the membership list goes by position (me.can_view_members)
+  show?: (me: Me) => boolean;       // for pages that go by position held, not by a permission
 }
 
 const NAV: NavItem[] = [
@@ -27,12 +27,14 @@ const NAV: NavItem[] = [
   { to: "/app/finance", label: "Finance",
     permission: ["finance.view", "finance.expense.submit", "finance.expense.verify", "finance.expense.approve"],
     icon: "M3 7h18v12H3zm0 4h18M7 15h3" },
-  { to: "/app/membership", label: "Membership", members: true,
+  { to: "/app/membership", label: "Membership", show: (me) => me.can_view_members,
     icon: "M4 5h16v14H4zm5 5a2 2 0 1 0 0-.01M6 16c.5-1.7 1.7-2.5 3-2.5s2.5.8 3 2.5m3-6h3m-3 3h3" },
   { to: "/app/scores", label: "Score cards",
     icon: "M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z" },
   { to: "/app/org", label: "Organisation", permission: "org.view",
     icon: "M12 3v5m0 0H6v4m6-4h6v4M4 12h4v4H4zm12 0h4v4h-4zM10 16h4v5h-4zm2-4v4" },
+  { to: "/app/team", label: "Team list", show: (me) => me.can_view_roster,
+    icon: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" },
   { to: "/app/recruitment", label: "Recruitment", permission: ["users.approve", "org.assign"],
     icon: "M15 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1m6-9a3 3 0 1 0 0-6 3 3 0 0 0 0 6m10-1v6m3-3h-6" },
   { to: "/app/users", label: "Team accounts", permission: "users.view",
@@ -83,7 +85,7 @@ export function AppLayout() {
     window.location.replace("/login");
   }
 
-  const items = NAV.filter((i) => (i.members ? me.can_view_members : !i.permission || [i.permission].flat().some((p) => can(p))));
+  const items = NAV.filter((i) => (i.show ? i.show(me) : !i.permission || [i.permission].flat().some((p) => can(p))));
 
   return (
     <div className="min-h-screen bg-slate-50 md:flex">
