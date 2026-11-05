@@ -192,7 +192,6 @@ class MembershipIn(BaseModel):
 
 class PaidMemberIn(BaseModel):
     holder_name: str = Field(min_length=2, max_length=120)
-    father_name: str = Field(min_length=2, max_length=120)
     membership_no: str = Field(min_length=1, max_length=40)
     course: str = Field(min_length=1, max_length=80)
     study_year: str = Field(min_length=1, max_length=20)
@@ -216,7 +215,6 @@ class MembershipOut(BaseModel):
     membership_no: str
     user_id: int | None
     holder_name: str
-    father_name: str | None
     course: str | None
     study_year: str | None
     holder_uid: str | None

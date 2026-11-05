@@ -546,7 +546,6 @@ export interface MembershipRecord {
   membership_no: string;
   user_id: number | null;
   holder_name: string;
-  father_name: string | null;
   course: string | null;
   study_year: string | null;
   holder_uid: string | null;

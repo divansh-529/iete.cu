@@ -573,7 +573,7 @@ def save_category(db: Session, actor: User, body: CategoryIn, category_id: int |
 
 def _membership_view(m: Membership, names: dict) -> dict:
     return {"id": m.id, "membership_no": m.membership_no, "user_id": m.user_id, "holder_name": m.holder_name,
-            "father_name": m.father_name, "course": m.course, "study_year": m.study_year,
+            "course": m.course, "study_year": m.study_year,
             "holder_uid": m.holder_uid, "holder_email": m.holder_email,
             "category": {"id": m.category_id, "name": names[m.category_id]} if m.category_id else None,
             "fee_amount": m.fee_amount, "status": m.status, "valid_from": m.valid_from, "valid_to": m.valid_to, "created_at": m.created_at}
@@ -585,8 +585,7 @@ def memberships(db: Session, q: str | None, status: str | None, limit: int) -> l
         stmt = stmt.where(Membership.status == status)
     if q:
         stmt = stmt.where(or_(Membership.holder_name.icontains(q, autoescape=True), Membership.membership_no.icontains(q, autoescape=True),
-                              Membership.holder_uid.icontains(q, autoescape=True), Membership.holder_email.icontains(q, autoescape=True),
-                              Membership.father_name.icontains(q, autoescape=True)))
+                              Membership.holder_uid.icontains(q, autoescape=True), Membership.holder_email.icontains(q, autoescape=True)))
     names = dict(db.execute(select(MembershipCategory.id, MembershipCategory.name)).all())
     return [_membership_view(m, names) for m in db.scalars(stmt.order_by(Membership.id.desc()).limit(limit))]
 

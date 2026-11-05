@@ -265,7 +265,7 @@ def test_membership_payment_creates_income_and_refund_reverses_it(make_client, o
     assert lead.get("/api/memberships").status_code == 403
 
 
-HEADER = "Name,Father Name,Membership No,Course,Year,Membership Valid Upto\n"
+HEADER = "Name,Membership No,Course,Year,Membership Valid Upto\n"
 
 
 def _upload(client, text_or_bytes, name="members.csv"):
@@ -276,14 +276,14 @@ def _upload(client, text_or_bytes, name="members.csv"):
 def test_treasurer_uploads_paid_members_from_csv(make_client, org, db):
     treasurer, lead, chair = (login(make_client, u) for u in (org.secretary, org.ops_lead, org.chair))
     account = _account(chair, opening="100.00")
-    body = HEADER + "Asha Rao,Ravi Rao,IETE-101,BE CSE,2,31/03/2027\nVik Das,Om Das,IETE-102,BE ECE,3,31-03-2027\n"
+    body = HEADER + "Asha Rao,IETE-101,BE CSE,2,31/03/2027\nVik Das,IETE-102,BE ECE,3,31-03-2027\n"
     assert _upload(lead, body).status_code == 403
     r = _upload(treasurer, body)
     assert r.status_code == 200, r.text
     assert r.json() == {"created": 2, "updated": 0}
 
     row = treasurer.get("/api/memberships", params={"q": "IETE-101"}).json()[0]
-    assert (row["holder_name"], row["father_name"], row["course"], row["study_year"]) == ("Asha Rao", "Ravi Rao", "BE CSE", "2")
+    assert (row["holder_name"], row["course"], row["study_year"]) == ("Asha Rao", "BE CSE", "2")
     assert row["status"] == "paid" and row["valid_to"] == "2027-03-31" and row["category"] is None
     # Fees collected before the portal don't touch the books.
     assert _balance(chair, account) == 100
@@ -292,9 +292,16 @@ def test_treasurer_uploads_paid_members_from_csv(make_client, org, db):
     assert db.query(AuditEvent).filter_by(action="membership.upload").count() == 1
 
     # Uploading a renewal list updates, and an unchanged row isn't counted.
-    r = _upload(treasurer, HEADER + "Asha Rao,Ravi Rao,IETE-101,BE CSE,3,31/03/2028\nVik Das,Om Das,IETE-102,BE ECE,3,31-03-2027\n")
+    r = _upload(treasurer, HEADER + "Asha Rao,IETE-101,BE CSE,3,31/03/2028\nVik Das,IETE-102,BE ECE,3,31-03-2027\n")
     assert r.json() == {"created": 0, "updated": 1}
     assert treasurer.get("/api/memberships", params={"q": "IETE-101"}).json()[0]["valid_to"] == "2028-03-31"
+
+
+def test_upload_ignores_a_father_name_column_in_an_older_file(make_client, org):
+    treasurer = login(make_client, org.secretary)
+    r = _upload(treasurer, "Name,Father Name,Membership No,Course,Year,Membership Valid Upto\nAsha Rao,Ravi Rao,IETE-101,BE CSE,2,31/03/2027\n")
+    assert r.status_code == 200 and r.json() == {"created": 1, "updated": 0}, r.text
+    assert "Ravi Rao" not in treasurer.get("/api/memberships").text
 
 
 def test_upload_reads_excel_with_real_dates_and_number_cells(make_client, org):
@@ -305,9 +312,9 @@ def test_upload_reads_excel_with_real_dates_and_number_cells(make_client, org):
 
     book = Workbook()
     sheet = book.active
-    sheet.append(["NAME", "FATHER NAME", "MEMBERSHIP NO", "COURSE", "YEAR", "MEMBERSHIP VALID UPTO"])
-    sheet.append(["Asha Rao", "Ravi Rao", 153, "BE CSE", 2, datetime(2027, 3, 31)])
-    sheet.append([None, None, None, None, None, None])
+    sheet.append(["NAME", "MEMBERSHIP NO", "COURSE", "YEAR", "MEMBERSHIP VALID UPTO"])
+    sheet.append(["Asha Rao", 153, "BE CSE", 2, datetime(2027, 3, 31)])
+    sheet.append([None, None, None, None, None])
     out = io.BytesIO()
     book.save(out)
     treasurer = login(make_client, org.secretary)
@@ -318,7 +325,7 @@ def test_upload_reads_excel_with_real_dates_and_number_cells(make_client, org):
 
 
 @pytest.mark.parametrize("body,name,code,mentions", [
-    ("Name,Course\nA,B\n", "m.csv", "MISSING_COLUMNS", "Father name"),
+    ("Name,Course\nA,B\n", "m.csv", "MISSING_COLUMNS", "Membership no"),
     ("", "m.csv", "FILE_EMPTY", ""),
     (HEADER, "m.csv", "FILE_EMPTY", ""),
     ("hello", "m.pdf", "FILE_TYPE", ""),
@@ -331,10 +338,10 @@ def test_upload_refuses_bad_files(make_client, org, body, name, code, mentions):
 
 def test_upload_saves_nothing_if_any_row_is_wrong(make_client, org):
     treasurer = login(make_client, org.secretary)
-    body = (HEADER + "Good Person,Dad,IETE-1,BE,1,31/03/2027\n"     # row 2 is fine
-            + ",Dad,IETE-2,BE,1,31/03/2027\n"                       # no name
-            + "Date Wrong,Dad,IETE-3,BE,1,soon\n"                   # bad date
-            + "Same Number,Dad,IETE-1,BE,1,31/03/2027\n")           # repeated number
+    body = (HEADER + "Good Person,IETE-1,BE,1,31/03/2027\n"     # row 2 is fine
+            + ",IETE-2,BE,1,31/03/2027\n"                           # no name
+            + "Date Wrong,IETE-3,BE,1,soon\n"                       # bad date
+            + "Same Number,IETE-1,BE,1,31/03/2027\n")               # repeated number
     r = _upload(treasurer, body).json()["error"]
     assert r["code"] == "ROWS_INVALID"
     details = {d["field"]: d["message"] for d in r["details"]}
@@ -347,14 +354,14 @@ def test_upload_wont_overwrite_a_membership_that_isnt_paid(make_client, org):
     assert treasurer.post("/api/membership/categories", json={"name": "Student", "fee": "300.00"}).status_code == 204
     category = treasurer.get("/api/membership/categories").json()[0]
     pending = treasurer.post("/api/memberships", json={"holder_name": "Pending Person", "category_id": category["id"]}).json()
-    r = _upload(treasurer, HEADER + f"New Name,Dad,{pending['membership_no']},BE,1,31/03/2027\n").json()["error"]
+    r = _upload(treasurer, HEADER + f"New Name,{pending['membership_no']},BE,1,31/03/2027\n").json()["error"]
     assert r["code"] == "ROWS_INVALID"
     assert treasurer.get("/api/memberships").json()[0]["holder_name"] == "Pending Person"
 
 
 def test_treasurer_adds_one_paid_member_by_hand(make_client, org):
     treasurer, lead = login(make_client, org.secretary), login(make_client, org.ops_lead)
-    body = {"holder_name": "Asha Rao", "father_name": "Ravi Rao", "membership_no": "IETE-9", "course": "BE CSE",
+    body = {"holder_name": "Asha Rao", "membership_no": "IETE-9", "course": "BE CSE",
             "study_year": "2", "valid_to": "2027-03-31"}
     assert lead.post("/api/memberships/paid", json=body).status_code == 403
     r = treasurer.post("/api/memberships/paid", json=body)
@@ -364,7 +371,7 @@ def test_treasurer_adds_one_paid_member_by_hand(make_client, org):
 
 def test_member_list_is_only_for_named_positions(make_client, org, db, chair):
     treasurer, chairperson, vc = (login(make_client, u) for u in (org.secretary, org.chair, org.vc))
-    assert treasurer.post("/api/memberships/paid", json={"holder_name": "Asha Rao", "father_name": "Ravi Rao", "membership_no": "9",
+    assert treasurer.post("/api/memberships/paid", json={"holder_name": "Asha Rao", "membership_no": "9",
                                                          "course": "BE", "study_year": "2", "valid_to": "2027-03-31"}).status_code == 201
 
     # Vice Chair (by position) and the Chairperson can read it; the Joint Secretary also keeps it.
@@ -373,10 +380,10 @@ def test_member_list_is_only_for_named_positions(make_client, org, db, chair):
     readers = [vc, login(make_client, joint), chairperson]
     for client in readers:
         assert client.get("/api/auth/me").json()["can_view_members"] is True
-        assert [m["father_name"] for m in client.get("/api/memberships").json()] == ["Ravi Rao"]
+        assert [m["holder_name"] for m in client.get("/api/memberships").json()] == ["Asha Rao"]
         assert client.get("/api/memberships/summary").status_code == 200
     assert vc.get("/api/auth/me").json()["can_record_members"] is False
-    assert _upload(vc, HEADER + "A B,C D,10,BE,1,31/03/2027\n").status_code == 403
+    assert _upload(vc, HEADER + "A B,10,BE,1,31/03/2027\n").status_code == 403
     assert readers[1].get("/api/auth/me").json()["can_record_members"] is True
 
     # Everyone else is refused, even with the permission granted directly or a Lead role.
@@ -388,7 +395,7 @@ def test_member_list_is_only_for_named_positions(make_client, org, db, chair):
         assert client.get("/api/auth/me").json()["can_view_members"] is False
         for path in ("/api/memberships", "/api/memberships/summary", "/api/membership/categories"):
             assert client.get(path).status_code == 403
-        assert _upload(client, HEADER + "A B,C D,10,BE,1,31/03/2027\n").status_code == 403
+        assert _upload(client, HEADER + "A B,10,BE,1,31/03/2027\n").status_code == 403
 
     # Leaving the position ends it at once, and names stay out of the audit log.
     pa = db.scalar(select(PositionAssignment).where(PositionAssignment.user_id == joint.id))

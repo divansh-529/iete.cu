@@ -66,7 +66,7 @@ function Members() {
         </div>
       )}>
         <div className="mb-4 grid gap-3 sm:grid-cols-2">
-          <Field label="Search"><Input value={q} placeholder="Name, father name, number, University ID or email" onChange={(e) => setQ(e.target.value)} /></Field>
+          <Field label="Search"><Input value={q} placeholder="Name, number, University ID or email" onChange={(e) => setQ(e.target.value)} /></Field>
           <Field label="Status">
             <Select value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="">All</option>
@@ -82,7 +82,6 @@ function Members() {
                   <span className="font-medium text-slate-900">{m.holder_name}</span>
                   <span className="block text-xs text-slate-500">
                     {m.membership_no}
-                    {m.father_name && ` · Father: ${m.father_name}`}
                     {m.course && ` · ${m.course}`}{m.study_year && ` · Year ${m.study_year}`}
                     {m.category && ` · ${m.category.name} · ${money(m.fee_amount)}`}
                     {m.holder_uid && ` · ${m.holder_uid}`}{m.holder_email && ` · ${m.holder_email}`}
@@ -114,7 +113,7 @@ function Members() {
   );
 }
 
-const TEMPLATE = "Name,Father Name,Membership No,Course,Year,Membership Valid Upto\nAsha Rao,Ravi Rao,IETE-101,BE CSE,2,31/03/2027\n";
+const TEMPLATE = "Name,Membership No,Course,Year,Membership Valid Upto\nAsha Rao,IETE-101,BE CSE,2,31/03/2027\n";
 
 function downloadTemplate() {
   const link = document.createElement("a");
@@ -157,7 +156,7 @@ function UploadMembers({ onClose }: { onClose: () => void }) {
         <div className="space-y-4 text-sm">
           {error && <Alert>{error}</Alert>}
           <p className="text-slate-600">Upload an Excel (.xlsx) or CSV file. The first row must have these headings:</p>
-          <p className="rounded-lg bg-slate-50 px-3 py-2 font-medium text-slate-800">Name · Father Name · Membership No · Course · Year · Membership Valid Upto</p>
+          <p className="rounded-lg bg-slate-50 px-3 py-2 font-medium text-slate-800">Name · Membership No · Course · Year · Membership Valid Upto</p>
           <ul className="list-disc space-y-1 pl-5 text-slate-600">
             <li>Write dates day first, like 31/03/2027.</li>
             <li>If a Membership No already exists, that person's details are updated.</li>
@@ -180,7 +179,6 @@ function UploadMembers({ onClose }: { onClose: () => void }) {
 function AddPaidMember({ onClose }: { onClose: () => void }) {
   const refresh = useRefresh();
   const [name, setName] = useState("");
-  const [father, setFather] = useState("");
   const [number, setNumber] = useState("");
   const [course, setCourse] = useState("");
   const [year, setYear] = useState("");
@@ -188,11 +186,10 @@ function AddPaidMember({ onClose }: { onClose: () => void }) {
   return (
     <FormModal title="Add paid member" submitLabel="Add" onClose={onClose}
                onSubmit={async () => {
-                 await api("/memberships/paid", { method: "POST", body: { holder_name: name, father_name: father, membership_no: number, course, study_year: year, valid_to: valid } });
+                 await api("/memberships/paid", { method: "POST", body: { holder_name: name, membership_no: number, course, study_year: year, valid_to: valid } });
                  refresh();
                }}>
       <Field label="Name"><Input required minLength={2} maxLength={120} value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
-      <Field label="Father name"><Input required minLength={2} maxLength={120} value={father} onChange={(e) => setFather(e.target.value)} /></Field>
       <Field label="Membership no"><Input required maxLength={40} value={number} onChange={(e) => setNumber(e.target.value)} /></Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Course"><Input required maxLength={80} value={course} onChange={(e) => setCourse(e.target.value)} /></Field>

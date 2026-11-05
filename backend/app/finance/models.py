@@ -59,7 +59,6 @@ class Membership(Base):
     membership_no: Mapped[str] = mapped_column(Text, unique=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     holder_name: Mapped[str] = mapped_column(Text)
-    father_name: Mapped[str | None] = mapped_column(Text)
     course: Mapped[str | None] = mapped_column(Text)
     study_year: Mapped[str | None] = mapped_column(Text)
     holder_uid: Mapped[str | None] = mapped_column(Text)

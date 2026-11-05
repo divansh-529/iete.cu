@@ -16,13 +16,12 @@ MAX_ERRORS_SHOWN = 20
 # Column -> the headings people actually use for it (compared without case, spaces or punctuation).
 COLUMNS = {
     "holder_name": ("name", "membername", "studentname", "fullname"),
-    "father_name": ("fathername", "fathersname"),
     "membership_no": ("membershipno", "membershipnumber", "membershipid"),
     "course": ("course", "branch"),
     "study_year": ("year", "yearofstudy"),
     "valid_to": ("membershipvalidupto", "membershipvalidtill", "membershipvalidity", "validupto", "validtill", "validto", "validity"),
 }
-HEADING = {"holder_name": "Name", "father_name": "Father name", "membership_no": "Membership no", "course": "Course",
+HEADING = {"holder_name": "Name", "membership_no": "Membership no", "course": "Course",
            "study_year": "Year", "valid_to": "Membership valid upto"}
 DATE_FORMATS = ("%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%Y-%m-%d", "%d %b %Y", "%d-%b-%Y", "%d %B %Y", "%d/%m/%y", "%d-%m-%y")
 
