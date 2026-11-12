@@ -45,7 +45,7 @@ function describe(n: AppNotification): { text: string; to: string } {
     case "appeal.rejected": return { text: `${p.by} rejected your appeal for ${p.code}: “${p.reason}”`, to: `/app/finance?tab=appeals&open=${p.transaction_id}` };
     case "transaction.reversed": return { text: `${p.by} reversed ${p.code}: “${p.reason}”`, to: `/app/finance?tab=mine&open=${p.transaction_id}` };
     case "score.round_opened": return { text: `Scoring is open: “${p.title}”. Please give your scores.`, to: "/app/scores?tab=score" };
-    case "score.published": return { text: `“${p.title}” score cards are published. See yours.`, to: "/app/scores" };
+    case "score.published": return { text: `“${p.title}” score cards are published. See yours.`, to: "/app/scores?tab=mine" };
     case "account.proposed": return { text: `${p.by} proposed ${p.name} for ${p.department}. Waiting for your approval.`, to: "/app/recruitment" };
     case "account.approved": return { text: `${p.by} approved ${p.name}. Their account is active.`, to: "/app/recruitment?tab=decided" };
     case "account.rejected": return { text: `${p.by} didn't approve ${p.name}: “${p.remarks}”`, to: "/app/recruitment?tab=decided" };

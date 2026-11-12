@@ -78,6 +78,17 @@ class PersonScoresOut(BaseModel):
     max_total: Decimal
 
 
+class RankOut(BaseModel):
+    label: str                        # e.g. "In Operations", "Among all Department Leads"
+    rank: int
+    out_of: int
+
+
+class MyScoresOut(PersonScoresOut):
+    category_label: str | None        # the role in the latest published round
+    ranks: list[RankOut]              # none for the Joint Secretary, Secretary and Vice Chairperson
+
+
 class LeaderboardRow(BaseModel):
     person: PersonRef
     category_label: str

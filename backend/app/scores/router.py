@@ -5,15 +5,15 @@ from app.auth.deps import require_in_service
 from app.core.db import get_db
 from app.core.errors import not_found
 from app.scores import service
-from app.scores.schemas import (DeleteRoundIn, EntryIn, LeaderboardRow, PersonScoresOut, ResetOut, RoundIn, RoundOut,
-                                ToScoreOut)
+from app.scores.schemas import (DeleteRoundIn, EntryIn, LeaderboardRow, MyScoresOut, PersonScoresOut, ResetOut, RoundIn,
+                                RoundOut, ToScoreOut)
 from app.users.models import User
 
 router = APIRouter(prefix="/api/scores", tags=["scores"])
 
-# The Chairperson's rules, not grants, decide who does what here: everyone on the team sees
-# published score cards, scorers are whoever holds the scoring roles, and only the Chairperson
-# opens and closes rounds. So routes only require a signed-in user; the service enforces the rest.
+# The Chairperson's rules, not grants, decide who does what here: each person sees their own
+# published score cards and ranks, scorers are whoever holds the scoring roles, and only the
+# Chairperson opens and closes rounds and sees everyone's results. So routes only require a signed-in user; the service enforces the rest.
 
 
 def _team(user: User) -> User:
@@ -67,10 +67,15 @@ def save_entry(card_id: int, slot: str, body: EntryIn, user: User = Depends(requ
 @router.get("/leaderboard", response_model=list[LeaderboardRow])
 def leaderboard(user: User = Depends(require_in_service("points.leaderboard.view")), db: Session = Depends(get_db)):
     _team(user)
-    return service.leaderboard(db)
+    return service.leaderboard(db, user)
+
+
+@router.get("/me", response_model=MyScoresOut)
+def my_scores(user: User = Depends(require_in_service("points.view")), db: Session = Depends(get_db)):
+    return service.my_scores(db, _team(user))
 
 
 @router.get("/people/{user_id}", response_model=PersonScoresOut)
 def person(user_id: int, user: User = Depends(require_in_service("points.view")), db: Session = Depends(get_db)):
     _team(user)
-    return service.person(db, user_id)
+    return service.person(db, user, user_id)

@@ -59,18 +59,23 @@ def test_round_follows_the_chairpersons_rules(make_client, org):
     assert _slots(chair_view)["lead"]["points"] == "4.5"                               # the Chairperson sees all
     assert _score(chair, chair_view, "chairperson", 5).status_code == 204
     assert _score(sec, _cards(sec)["vc@ietecu.in"], "secretary", 9).status_code == 204
-    assert member.get("/api/scores/leaderboard").json() == []                          # nothing published yet
+    assert chair.get("/api/scores/leaderboard").json() == []                           # nothing published yet
 
-    # Closing publishes to everyone; nothing can change afterwards
+    # Closing publishes each card to its person; nothing can change afterwards
     assert vc.post(f"/api/scores/rounds/{rnd['id']}/close").status_code == 403
     assert chair.post(f"/api/scores/rounds/{rnd['id']}/close").json()["status"] == "closed"
     assert notifications(member, "score.published")
     assert _score(lead, m, "lead", 5).status_code == 409
-    board = {b["person"]["email"]: b for b in member.get("/api/scores/leaderboard").json()}
+    board = {b["person"]["email"]: b for b in chair.get("/api/scores/leaderboard").json()}
     assert board["opsmember@ietecu.in"]["total"] == "13.5" and board["opsmember@ietecu.in"]["max_total"] == "20"
     assert board["vc@ietecu.in"]["total"] == "9.0"
     card = member.get(f"/api/scores/people/{org.ops_member.id}").json()["cards"][0]
     assert _slots(card)["lead"]["remarks"] == "Reliable at events" and _slots(card)["vice_chair"]["given"] is False
+    # Only the Chairperson sees other people's cards and the standings.
+    for client in (member, lead, vc):
+        assert client.get("/api/scores/leaderboard").status_code == 403
+    assert vc.get(f"/api/scores/people/{org.ops_member.id}").status_code == 403
+    assert chair.get(f"/api/scores/people/{org.ops_member.id}").status_code == 200
 
     # A second round adds up: out of 40
     second = chair.post("/api/scores/rounds", json={"title": "December 2026"}).json()
@@ -148,3 +153,36 @@ def test_chairperson_resets_all_scores_to_start_again(make_client, org):
     _published_round(chair, vc, "December")
     row = chair.get("/api/scores/leaderboard").json()[0]
     assert float(row["total"]) == 4 and float(row["max_total"]) == 20
+
+
+def test_each_person_sees_their_own_score_and_ranks(make_client, org):
+    chair, vc, sec, lead, member, tech = (login(make_client, u) for u in
+                                          (org.chair, org.vc, org.secretary, org.ops_lead, org.ops_member, org.tech_member))
+    assert member.get("/api/scores/me").json() == {**member.get("/api/scores/me").json(), "cards": [], "ranks": [],
+                                                   "category_label": None}       # nothing published yet
+    rnd = chair.post("/api/scores/rounds", json={"title": "November"}).json()
+    _score(lead, _cards(lead)["opsmember@ietecu.in"], "lead", 4)
+    _score(sec, _cards(sec)["opsmember@ietecu.in"], "secretary", 4)
+    _score(chair, _cards(chair)["techmember@ietecu.in"], "chairperson", 5)
+    _score(chair, _cards(chair)["opslead@ietecu.in"], "chairperson", 3)
+    _score(sec, _cards(sec)["vc@ietecu.in"], "secretary", 9)
+    assert member.get("/api/scores/me").json()["cards"] == []                     # not until the round closes
+    chair.post(f"/api/scores/rounds/{rnd['id']}/close")
+
+    def ranks(client):
+        return [(r["label"], r["rank"], r["out_of"]) for r in client.get("/api/scores/me").json()["ranks"]]
+
+    mine = member.get("/api/scores/me").json()
+    assert (mine["total"], mine["category_label"], len(mine["cards"])) == ("8.0", "Member", 1)
+    assert ranks(member) == [("In Operations", 1, 1), ("In the IETE core team", 1, 2)]
+    assert ranks(tech) == [("In Technical", 1, 1), ("In the IETE core team", 2, 2)]
+    assert ranks(lead) == [("Among all Department Leads", 1, 1)]
+    vc_view = vc.get("/api/scores/me").json()
+    assert (vc_view["total"], vc_view["ranks"]) == ("9.0", [])                       # posts above: score only
+    assert sec.get("/api/scores/me").json()["ranks"] == []
+
+    # Equal totals share a rank.
+    second = chair.post("/api/scores/rounds", json={"title": "December"}).json()
+    _score(chair, _cards(chair)["techmember@ietecu.in"], "chairperson", 3)
+    chair.post(f"/api/scores/rounds/{second['id']}/close")
+    assert ranks(member)[1] == ranks(tech)[1] == ("In the IETE core team", 1, 2)

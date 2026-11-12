@@ -7,7 +7,10 @@ scored. A slot is filled by whoever currently holds that role (for 'lead': a Lea
 department). Nobody scores their own card.
 
 While a round is open, scorers see only their own entries (the Chairperson sees everything), so
-early marks don't sway others. Once closed, every card is published to the whole team.
+early marks don't sway others. Once closed, each person sees only their own cards (the Chairperson's
+rule, 2026-11-12): a Member also sees their rank in their department and among all Members, a Lead
+their rank among all Leads, and the Joint Secretary, Secretary and Vice Chairperson just their score.
+Only the Chairperson sees the full standings and everyone's cards.
 """
 from collections import defaultdict
 from decimal import Decimal
@@ -271,7 +274,7 @@ def _published(db: Session, user_id: int | None = None):
     return db.execute(stmt.order_by(ScoreRound.closed_at.desc(), ScoreRound.id.desc())).all()
 
 
-def leaderboard(db: Session) -> list[dict]:
+def _board(db: Session) -> list[dict]:
     rows = _published(db)
     totals = dict(db.execute(select(ScoreEntry.card_id, func.sum(ScoreEntry.points))
                              .where(ScoreEntry.card_id.in_([c.id for c, _ in rows] or [0]))
@@ -281,8 +284,8 @@ def leaderboard(db: Session) -> list[dict]:
     board: dict[int, dict] = {}
     for card, rnd in rows:                       # newest round first: its role is the person's latest
         b = board.setdefault(card.user_id, {
-            "person": people[card.user_id], "category_label": CATEGORY_LABELS[card.category],
-            "department": depts.get(card.department_id), "rounds": 0, "total": Decimal(0), "max_total": Decimal(0),
+            "person": people[card.user_id], "category": card.category, "category_label": CATEGORY_LABELS[card.category],
+            "department_id": card.department_id, "department": depts.get(card.department_id), "rounds": 0, "total": Decimal(0), "max_total": Decimal(0),
             "latest": totals.get(card.id, Decimal(0))})
         b["rounds"] += 1
         b["total"] += totals.get(card.id, Decimal(0))
@@ -290,7 +293,34 @@ def leaderboard(db: Session) -> list[dict]:
     return sorted(board.values(), key=lambda b: (-b["total"], b["person"]["full_name"]))
 
 
-def person(db: Session, user_id: int) -> dict:
+def leaderboard(db: Session, viewer: User) -> list[dict]:
+    if not viewer.is_super_admin:
+        raise forbidden("Only the Chairperson sees everyone's scores.")
+    return _board(db)
+
+
+def _rank(board: list[dict], mine: dict, label: str) -> dict:
+    """Equal totals share a rank (1, 1, 3)."""
+    return {"label": label, "rank": 1 + sum(1 for b in board if b["total"] > mine["total"]), "out_of": len(board)}
+
+
+def my_scores(db: Session, user: User) -> dict:
+    """Your own published cards and where you stand. Rankings use everyone's latest role."""
+    board = _board(db)
+    mine = next((b for b in board if b["person"]["id"] == user.id), None)
+    ranks = []
+    if mine and mine["category"] == "member":
+        team = [b for b in board if b["category"] == "member" and b["department_id"] == mine["department_id"]]
+        ranks.append(_rank(team, mine, f"In {mine['department']}" if mine["department"] else "In your team"))
+        ranks.append(_rank([b for b in board if b["category"] == "member"], mine, "In the IETE core team"))
+    elif mine and mine["category"] == "lead":
+        ranks.append(_rank([b for b in board if b["category"] == "lead"], mine, "Among all Department Leads"))
+    return {**person(db, user, user.id), "category_label": mine["category_label"] if mine else None, "ranks": ranks}
+
+
+def person(db: Session, viewer: User, user_id: int) -> dict:
+    if viewer.id != user_id and not viewer.is_super_admin:
+        raise forbidden("You can see only your own score card.")
     user = db.get(User, user_id)
     if user is None or user.user_type != "team" or user.status == "deleted":
         raise not_found("Person")

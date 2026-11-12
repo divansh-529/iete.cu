@@ -357,6 +357,17 @@ export interface PersonScores {
   max_total: string;
 }
 
+export interface ScoreRank {
+  label: string;
+  rank: number;
+  out_of: number;
+}
+
+export interface MyScores extends PersonScores {
+  category_label: string | null;
+  ranks: ScoreRank[];
+}
+
 export interface LeaderboardRow {
   person: PersonRef;
   category_label: string;

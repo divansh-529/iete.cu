@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { api } from "../../api/client";
-import type { EventSummary, MemberProposal, TaskSummary, UserPage } from "../../api/types";
+import type { EventSummary, MemberProposal, MyScores, TaskSummary, UserPage } from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
 import { TriangleMotif } from "../../components/Brand";
 import { Card } from "../../components/ui";
+import { MyScoreSummary } from "../scores/ScoresPage";
 import { DashboardCalendar } from "./DashboardCalendar";
 
 export function DashboardPage() {
@@ -24,6 +25,9 @@ export function DashboardPage() {
   const eventsToAct = useQuery({ queryKey: ["events", "action", "", ""], queryFn: () => api<EventSummary[]>("/events?view=action") });
   const proposals = useQuery({ queryKey: ["proposals", "pending"], enabled: can("users.approve"),
                                queryFn: () => api<MemberProposal[]>("/member-proposals?status=pending") });
+  // The Chairperson isn't scored; everyone else on the team sees their own card here.
+  const myScores = useQuery({ queryKey: ["scores", "me"], enabled: me?.user.user_type === "team" && !me.user.is_super_admin,
+                              queryFn: () => api<MyScores>("/scores/me") });
   const overdue = myTasks.data?.filter((t) => t.overdue).length ?? 0;
 
   const permissionCount = me?.all_permissions ? null : new Set(me?.permissions.map((p) => p.code)).size;
@@ -58,6 +62,7 @@ export function DashboardPage() {
           <Stat label="Suspended" value={counts.data.suspended} accent="bg-amber-500" />
         </div>
       )}
+      {myScores.data && <div className="mb-7"><MyScoreSummary data={myScores.data} link /></div>}
       <div className="mb-7"><DashboardCalendar /></div>
       <Card title="Your access">
         {me?.all_permissions ? (

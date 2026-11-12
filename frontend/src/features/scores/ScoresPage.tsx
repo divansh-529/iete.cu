@@ -2,14 +2,17 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, errorMessage } from "../../api/client";
-import type { LeaderboardRow, ScoreCard, ScoreRound, ScoreSlot, ToScore } from "../../api/types";
+import type { LeaderboardRow, MyScores, ScoreCard, ScoreRound, ScoreSlot, ToScore } from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
 import { Alert, Badge, Button, Card, cx, Empty, Field, formatDate, Input, Modal, PageHeader, Spinner,
   Tabs } from "../../components/ui";
 import { FormModal } from "../org/modals";
+import { PublishedCards } from "./PersonScoresPage";
 
-const TABS = [["board", "Standings"], ["score", "Score now"], ["rounds", "Rounds"]] as const;
-type Tab = (typeof TABS)[number][0];
+// Only the Chairperson sees everyone's standings; everyone else sees their own card and ranks.
+const CHAIR_TABS = [["board", "Standings"], ["score", "Score now"], ["rounds", "Rounds"]] as const;
+const TEAM_TABS = [["mine", "My score card"], ["score", "Score now"], ["rounds", "Rounds"]] as const;
+type Tab = (typeof CHAIR_TABS)[number][0] | (typeof TEAM_TABS)[number][0];
 
 const fmt = (n: string | number) => Number(n).toLocaleString("en-IN", { maximumFractionDigits: 1 });
 
@@ -18,12 +21,13 @@ export function ScoresPage() {
   const chair = !!me?.user.is_super_admin;
   const [params, setParams] = useSearchParams();
   const open = useQuery({ queryKey: ["scores", "to-score"], queryFn: () => api<ToScore | null>("/scores/to-score") });
-  const defaultTab: Tab = open.data && (open.data.my_expected > 0 || chair) ? "score" : "board";
+  const defaultTab: Tab = open.data && (open.data.my_expected > 0 || chair) ? "score" : chair ? "board" : "mine";
   const tab = (params.get("tab") as Tab) ?? defaultTab;
   return (
     <>
       <PageHeader title="Score cards"
-                  subtitle="Everyone's scores, published when the Chairperson closes a round. Each round is worth up to 20; totals add up across rounds." />
+                  subtitle={chair ? "Everyone's scores, published when you close a round. Each round is worth up to 20; totals add up across rounds."
+                    : "Your scores, published when the Chairperson closes a round. Each round is worth up to 20; totals add up across rounds."} />
       {open.data && (
         <div className="mb-4"><Alert tone="amber">
           <strong>{open.data.round.title}</strong> scoring is open.{" "}
@@ -31,8 +35,9 @@ export function ScoresPage() {
             : chair ? "" : "Results are published when the Chairperson closes the round."}
         </Alert></div>
       )}
-      <Tabs tabs={TABS} value={tab} onChange={(t) => setParams({ tab: t })} />
-      {tab === "board" && <Standings chair={chair} />}
+      <Tabs tabs={chair ? CHAIR_TABS : TEAM_TABS} value={tab} onChange={(t) => setParams({ tab: t })} />
+      {tab === "board" && chair && <Standings chair={chair} />}
+      {tab === "mine" && !chair && <Mine />}
       {tab === "score" && <ScoreNow data={open.data ?? null} loading={open.isLoading} chair={chair} />}
       {tab === "rounds" && <Rounds chair={chair} />}
     </>
@@ -111,12 +116,51 @@ function Standings({ chair }: { chair: boolean }) {
   );
 }
 
+function Mine() {
+  const mine = useQuery({ queryKey: ["scores", "me"], queryFn: () => api<MyScores>("/scores/me") });
+  if (mine.isLoading) return <Spinner />;
+  if (mine.error || !mine.data) return <Alert>{errorMessage(mine.error)}</Alert>;
+  return (
+    <div className="space-y-4">
+      <MyScoreSummary data={mine.data} />
+      {mine.data.cards.length > 0 && <PublishedCards cards={mine.data.cards} />}
+    </div>
+  );
+}
+
+/** Your total and ranks. Also shown on the dashboard. */
+export function MyScoreSummary({ data, link }: { data: MyScores; link?: boolean }) {
+  return (
+    <Card title="My score card" actions={link && <Link to="/app/scores?tab=mine" className="text-sm font-medium text-brand-600 hover:underline">See every round →</Link>}>
+      {!data.cards.length ? <Empty>Your score appears here when the Chairperson publishes a scoring round.</Empty> : (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div>
+            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">My score</div>
+            <div className="mt-1 font-display text-3xl font-semibold text-slate-900 tabular-nums">
+              {fmt(data.total)} <span className="text-base font-normal text-slate-400">/ {fmt(data.max_total)}</span>
+            </div>
+            <div className="text-xs text-slate-500">{data.cards.length} round(s){data.category_label && ` · ${data.category_label}`}</div>
+          </div>
+          {data.ranks.map((r) => (
+            <div key={r.label}>
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{r.label}</div>
+              <div className="mt-1 font-display text-3xl font-semibold text-brand-700 tabular-nums">
+                #{r.rank} <span className="text-base font-normal text-slate-400">of {r.out_of}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function ScoreNow({ data, loading, chair }: { data: ToScore | null; loading: boolean; chair: boolean }) {
   // "Everyone" first: a card that just got scored stays in view (and shows "Saved ✓").
   const [filter, setFilter] = useState<"todo" | "all">("all");
   if (loading) return <Spinner />;
   if (!data) return <Card><Empty>No scoring round is open right now.{chair && " Open one on the Rounds tab."}</Empty></Card>;
-  if (!data.cards.length) return <Card><Empty>You don't give scores in this round. Results appear under Standings once it closes.</Empty></Card>;
+  if (!data.cards.length) return <Card><Empty>You don't give scores in this round. Your score card appears once it closes.</Empty></Card>;
   const cards = filter === "all" ? data.cards : data.cards.filter((c) => c.slots.some((s) => s.editable && !s.given));
   return (
     <>
@@ -187,7 +231,7 @@ function SlotInput({ cardId, slot }: { cardId: number; slot: ScoreSlot }) {
                  onChange={(e) => { setPoints(e.target.value); setState("idle"); }} />
         </Field>
         <div className="min-w-40 flex-1">
-          <Field label="Remark (optional, everyone sees it after publishing)">
+          <Field label="Remark (optional, the person sees it after publishing)">
             <Input value={remarks} onChange={(e) => { setRemarks(e.target.value); setState("idle"); }} maxLength={500} />
           </Field>
         </div>
@@ -216,7 +260,7 @@ function CloseRound({ round }: { round: ScoreRound }) {
           <div className="space-y-4">
             {error && <Alert>{error}</Alert>}
             {missing > 0 && <Alert tone="amber">{missing} score(s) haven't been given yet. Missing parts count as 0.</Alert>}
-            <p className="text-sm text-slate-600">Everyone will be able to see every score card from this round, and scores can't be changed afterwards.</p>
+            <p className="text-sm text-slate-600">Each person will see their own score card and ranks from this round, and scores can't be changed afterwards.</p>
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setConfirm(false)}>Cancel</Button>
               <Button onClick={async () => {
