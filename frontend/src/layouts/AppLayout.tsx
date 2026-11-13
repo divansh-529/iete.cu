@@ -24,6 +24,8 @@ const NAV: NavItem[] = [
   { to: "/app/tasks", label: "Tasks", icon: "M9 11l3 3 8-8M20 12v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h11" },
   { to: "/app/documents", label: "Documents", permission: "documents.view",
     icon: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zm0 0v5h5M9 13h6m-6 4h6" },
+  { to: "/app/tracker", label: "Document tracker", show: (me) => me.user.user_type === "team",
+    icon: "M5 4h9l5 5v11H5zM9 13l2 2 4-4" },
   { to: "/app/finance", label: "Finance",
     permission: ["finance.view", "finance.expense.submit", "finance.expense.verify", "finance.expense.approve"],
     icon: "M3 7h18v12H3zm0 4h18M7 15h3" },

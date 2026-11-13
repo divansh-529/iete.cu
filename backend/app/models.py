@@ -13,6 +13,7 @@ from app.org.models import (Department, DepartmentMembership, MemberProfile, Pos
                             PositionAssignment, Term)
 from app.permissions.models import Grant, Permission, PermissionAudit, Role, RolePermission  # noqa: F401
 from app.settings.models import Setting  # noqa: F401
+from app.tracker.models import TrackedDocument, TrackerStep, TrackerUpdate  # noqa: F401
 from app.tasks.models import (Task, TaskAssignee, TaskComment, TaskDependency,  # noqa: F401
                               TaskStatusHistory, TaskSubmission)
 from app.users.models import InviteToken, User  # noqa: F401

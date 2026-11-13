@@ -378,6 +378,54 @@ export interface LeaderboardRow {
   latest: string;
 }
 
+// ---------------------------------------------------------------- document tracker
+
+export interface TrackerAccess {
+  sees_all: boolean;
+}
+
+export interface TrackerSummary {
+  id: number;
+  title: string;
+  reference_no: string | null;
+  status: "in_progress" | "completed" | "rejected" | "cancelled";
+  assigned_to: PersonRef;
+  created_by: PersonRef;
+  created_at: string;
+  current_step: string | null;
+  steps_signed: number;
+  steps_total: number;
+  last_update_at: string;
+}
+
+export interface TrackerStep {
+  id: number;
+  step_no: number;
+  authority: string;
+  status: "pending" | "submitted" | "returned" | "signed" | "rejected";
+}
+
+export interface TrackerEvent {
+  id: number;
+  kind: string;
+  step: string | null;
+  happened_on: string | null;
+  note: string | null;
+  assigned_to: PersonRef | null;
+  file_name: string | null;
+  by: PersonRef;
+  at: string;
+}
+
+export interface TrackerDetail extends TrackerSummary {
+  description: string | null;
+  steps: TrackerStep[];
+  timeline: TrackerEvent[];
+  can_record: boolean;
+  can_manage: boolean;
+  can_add_step: boolean;
+}
+
 // ---------------------------------------------------------------- notifications
 
 export interface AppNotification {

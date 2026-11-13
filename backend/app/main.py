@@ -21,6 +21,7 @@ from app.documents.router import router as documents_router
 from app.finance.router import router as finance_router
 from app.scores.router import router as scores_router
 from app.tasks.router import router as tasks_router
+from app.tracker.router import router as tracker_router
 from app.users.router import router as users_router
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -84,6 +85,7 @@ def create_app() -> FastAPI:
     app.include_router(scores_router)
     app.include_router(documents_router)
     app.include_router(finance_router)
+    app.include_router(tracker_router)
     return app
 
 
