@@ -17,6 +17,22 @@ class AssignIn(BaseModel):
     user_id: int
 
 
+class HandoverIn(BaseModel):
+    user_id: int
+    note: str | None = Field(default=None, max_length=500)
+
+
+class HandoverAnswerIn(BaseModel):
+    accept: bool
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class HandoverOut(BaseModel):
+    to: PersonRef
+    note: str | None
+    at: datetime
+
+
 class StepIn(BaseModel):
     authority: str = Field(min_length=1, max_length=60)
 
@@ -56,6 +72,7 @@ class TrackerOut(BaseModel):
     steps_signed: int
     steps_total: int
     last_update_at: datetime
+    handover: HandoverOut | None      # waiting for that person to accept
 
 
 class TrackerDetailOut(TrackerOut):
@@ -65,6 +82,10 @@ class TrackerDetailOut(TrackerOut):
     can_record: bool
     can_manage: bool                  # reassign and cancel
     can_add_step: bool
+    can_delete: bool                  # the Chairperson and Vice Chairperson
+    can_hand_over: bool
+    can_answer_handover: bool
+    can_withdraw_handover: bool
 
 
 class AccessOut(BaseModel):

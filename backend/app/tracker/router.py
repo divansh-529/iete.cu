@@ -8,7 +8,8 @@ from app.core.db import get_db
 from app.core.errors import AppError, not_found
 from app.documents.service import MAX_FILE_BYTES, MB
 from app.tracker import service
-from app.tracker.schemas import AccessOut, AssignIn, CancelIn, FileUrlOut, StepIn, TrackerDetailOut, TrackerIn, TrackerOut
+from app.tracker.schemas import (AccessOut, AssignIn, CancelIn, FileUrlOut, HandoverAnswerIn, HandoverIn, StepIn, TrackerDetailOut,
+                                 TrackerIn, TrackerOut)
 from app.users.models import User
 
 router = APIRouter(prefix="/api/tracker", tags=["tracker"])
@@ -72,6 +73,30 @@ def add_step(document_id: int, body: StepIn, user: User = Depends(_team), db: Se
 @router.post("/{document_id}/cancel", status_code=204)
 def cancel(document_id: int, body: CancelIn, user: User = Depends(_team), db: Session = Depends(get_db)):
     service.cancel(db, user, document_id, body.reason)
+    return Response(status_code=204)
+
+
+@router.post("/{document_id}/handover", response_model=TrackerDetailOut)
+def hand_over(document_id: int, body: HandoverIn, user: User = Depends(_team), db: Session = Depends(get_db)):
+    service.hand_over(db, user, document_id, body.user_id, body.note)
+    return service.detail(db, user, document_id)
+
+
+@router.post("/{document_id}/handover/answer", status_code=204)
+def answer_handover(document_id: int, body: HandoverAnswerIn, user: User = Depends(_team), db: Session = Depends(get_db)):
+    service.answer_handover(db, user, document_id, body.accept, body.reason)
+    return Response(status_code=204)
+
+
+@router.post("/{document_id}/handover/withdraw", response_model=TrackerDetailOut)
+def withdraw_handover(document_id: int, user: User = Depends(_team), db: Session = Depends(get_db)):
+    service.withdraw_handover(db, user, document_id)
+    return service.detail(db, user, document_id)
+
+
+@router.post("/{document_id}/delete", status_code=204)
+def delete(document_id: int, body: CancelIn, user: User = Depends(_team), db: Session = Depends(get_db)):
+    service.delete(db, user, document_id, body.reason)
     return Response(status_code=204)
 
 

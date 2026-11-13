@@ -46,6 +46,8 @@ function describe(n: AppNotification): { text: string; to: string } {
     case "transaction.reversed": return { text: `${p.by} reversed ${p.code}: “${p.reason}”`, to: `/app/finance?tab=mine&open=${p.transaction_id}` };
     case "tracker.assigned": return { text: `${p.by} asked you to carry “${p.title}” for signatures`, to: `/app/tracker/${p.document_id}` };
     case "tracker.updated": return { text: p.done ? `“${p.title}” has every signature ✓` : `“${p.title}”: ${p.step} ${({ submitted: "has it now", signed: "signed ✓", returned: "returned it with changes", rejected: "rejected it" } as Record<string, string>)[p.status as string] ?? p.status} (${p.by})`, to: `/app/tracker/${p.document_id}` };
+    case "tracker.handover": return { text: `${p.by} wants to hand you “${p.title}” for the next signatures. Accept it to take over.`, to: `/app/tracker/${p.document_id}` };
+    case "tracker.handover_answered": return { text: p.accepted ? `${p.by} accepted “${p.title}” and carries it now` : `${p.by} couldn't take “${p.title}”: “${p.reason}”`, to: `/app/tracker/${p.document_id}` };
     case "tracker.cancelled": return { text: `${p.by} cancelled tracking of “${p.title}”: “${p.reason}”`, to: `/app/tracker/${p.document_id}` };
     case "score.round_opened": return { text: `Scoring is open: “${p.title}”. Please give your scores.`, to: "/app/scores?tab=score" };
     case "score.published": return { text: `“${p.title}” score cards are published. See yours.`, to: "/app/scores?tab=mine" };

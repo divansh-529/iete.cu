@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { api, ApiError, errorMessage } from "../../api/client";
 import type { PersonRef, TrackerDetail, TrackerEvent } from "../../api/types";
 import { Alert, Badge, Button, Card, cx, Field, formatDate, Input, PageHeader, Select, Spinner, Textarea } from "../../components/ui";
@@ -13,7 +13,7 @@ const today = () => new Date().toLocaleDateString("en-CA");   // yyyy-mm-dd in t
 export function TrackerDetailPage() {
   const id = Number(useParams().id);
   const doc = useQuery({ queryKey: ["tracker", "doc", id], queryFn: () => api<TrackerDetail>(`/tracker/${id}`) });
-  const [modal, setModal] = useState<"assign" | "step" | "cancel" | null>(null);
+  const [modal, setModal] = useState<"assign" | "step" | "cancel" | "delete" | "handover" | "decline" | null>(null);
   if (doc.isLoading) return <Spinner />;
   if (doc.error || !doc.data) return <Alert>{errorMessage(doc.error)}</Alert>;
   const d = doc.data;
@@ -23,14 +23,17 @@ export function TrackerDetailPage() {
       <PageHeader title={d.title}
                   subtitle={`${d.reference_no ? `${d.reference_no} · ` : ""}Added by ${d.created_by.full_name} on ${formatDate(d.created_at, false)}`}
                   actions={<Badge tone={TRACKER_STATUS[d.status][0]}>{TRACKER_STATUS[d.status][1]}</Badge>} />
+      {d.handover && <HandoverBanner doc={d} onDecline={() => setModal("decline")} />}
       <Card className="mb-6">
         <Steps doc={d} />
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
           <span className="text-slate-600">Carried by <span className="font-medium text-slate-900">{d.assigned_to.full_name}</span></span>
           <span className="flex flex-wrap gap-2">
+            {d.can_hand_over && <Button onClick={() => setModal("handover")}>Hand over</Button>}
             {d.can_add_step && <Button variant="secondary" onClick={() => setModal("step")}>+ Add a signature</Button>}
             {d.can_manage && <Button variant="secondary" onClick={() => setModal("assign")}>Change who carries it</Button>}
             {d.can_manage && <Button variant="ghost" className="text-red-600" onClick={() => setModal("cancel")}>Cancel</Button>}
+            {d.can_delete && <Button variant="ghost" className="text-red-700" onClick={() => setModal("delete")}>Delete</Button>}
           </span>
         </div>
         {d.description && <p className="mt-3 whitespace-pre-line text-sm text-slate-600">{d.description}</p>}
@@ -42,6 +45,9 @@ export function TrackerDetailPage() {
       {modal === "assign" && <Reassign id={d.id} onClose={() => setModal(null)} />}
       {modal === "step" && <AddStep id={d.id} onClose={() => setModal(null)} />}
       {modal === "cancel" && <CancelTracking id={d.id} onClose={() => setModal(null)} />}
+      {modal === "delete" && <DeleteTracking id={d.id} onClose={() => setModal(null)} />}
+      {modal === "handover" && <HandOver doc={d} onClose={() => setModal(null)} />}
+      {modal === "decline" && <DeclineHandover id={d.id} onClose={() => setModal(null)} />}
     </>
   );
 }
@@ -80,6 +86,10 @@ function describe(e: TrackerEvent): string {
     case "step_added": return `Added a signature: ${e.note}`;
     case "completed": return "All signatures done ✓";
     case "cancelled": return "Cancelled tracking";
+    case "handover_requested": return `Asked ${e.assigned_to?.full_name} to take it over`;
+    case "handover_accepted": return `${e.assigned_to?.full_name} accepted it and carries it now`;
+    case "handover_declined": return `${e.assigned_to?.full_name} couldn't take it`;
+    case "handover_withdrawn": return `Withdrew the handover to ${e.assigned_to?.full_name}`;
     case "submitted": return `Submitted at ${e.step}`;
     case "returned": return `${e.step} returned it with changes`;
     case "signed": return `Signed by ${e.step} ✓`;
@@ -218,6 +228,94 @@ function CancelTracking({ id, onClose }: { id: number; onClose: () => void }) {
                  qc.invalidateQueries({ queryKey: ["tracker"] });
                }}>
       <Field label="Why?"><Input required minLength={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus /></Field>
+    </FormModal>
+  );
+}
+
+function DeleteTracking({ id, onClose }: { id: number; onClose: () => void }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [reason, setReason] = useState("");
+  return (
+    <FormModal title="Delete this document" submitLabel="Delete" danger onClose={onClose}
+               onSubmit={async () => {
+                 await api(`/tracker/${id}/delete`, { method: "POST", body: { reason } });
+                 qc.invalidateQueries({ queryKey: ["tracker"] });
+                 navigate("/app/tracker");
+               }}>
+      <Alert tone="amber">It disappears from the tracker for everyone. The audit log keeps a record of the deletion.</Alert>
+      <Field label="Reason"><Input required minLength={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus /></Field>
+    </FormModal>
+  );
+}
+
+/** A handover waiting to be accepted. The person it's offered to accepts or declines here. */
+function HandoverBanner({ doc, onDecline }: { doc: TrackerDetail; onDecline: () => void }) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const h = doc.handover!;
+  async function run(path: string, body?: unknown) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/tracker/${doc.id}/${path}`, { method: "POST", body });
+      qc.invalidateQueries({ queryKey: ["tracker"] });
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="mb-6 rounded-xl border border-violet-200 bg-violet-50 px-5 py-4 text-sm">
+      {error && <div className="mb-3"><Alert>{error}</Alert></div>}
+      <p className="font-medium text-violet-900">
+        {doc.can_answer_handover ? `${doc.assigned_to.full_name} wants to hand this document to you.`
+          : `Waiting for ${h.to.full_name} to accept the handover from ${doc.assigned_to.full_name}.`}
+      </p>
+      {h.note && <p className="mt-1 text-violet-800">“{h.note}”</p>}
+      <p className="mt-1 text-xs text-violet-700">Asked {formatDate(h.at)}. Until it's accepted, {doc.assigned_to.full_name} still carries it.</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {doc.can_answer_handover && <Button disabled={busy} onClick={() => run("handover/answer", { accept: true })}>Accept and carry it</Button>}
+        {doc.can_answer_handover && <Button variant="secondary" disabled={busy} onClick={onDecline}>Decline</Button>}
+        {doc.can_withdraw_handover && <Button variant="secondary" disabled={busy} onClick={() => run("handover/withdraw")}>Withdraw handover</Button>}
+      </div>
+    </div>
+  );
+}
+
+function HandOver({ doc, onClose }: { doc: TrackerDetail; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [person, setPerson] = useState<PersonRef | null>(null);
+  const [note, setNote] = useState("");
+  return (
+    <FormModal title="Hand over for the next signatures" submitLabel="Ask them to take it" onClose={onClose}
+               onSubmit={async () => {
+                 if (!person) throw new ApiError(422, "PERSON_REQUIRED", "Choose who will take it.");
+                 await api(`/tracker/${doc.id}/handover`, { method: "POST", body: { user_id: person.id, note: note || null } });
+                 qc.invalidateQueries({ queryKey: ["tracker"] });
+               }}>
+      <Field group label="Hand it to"><PersonPicker value={person} onChange={setPerson} exclude={[doc.assigned_to.id]} /></Field>
+      <Field label="Note (optional)"><Textarea maxLength={500} value={note} placeholder={doc.current_step ? `Please take it to ${doc.current_step}` : ""}
+                                               onChange={(e) => setNote(e.target.value)} /></Field>
+      <p className="text-xs text-slate-500">They must accept before it becomes theirs. Until then you still carry it.</p>
+    </FormModal>
+  );
+}
+
+function DeclineHandover({ id, onClose }: { id: number; onClose: () => void }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [reason, setReason] = useState("");
+  return (
+    <FormModal title="Decline the handover" submitLabel="Decline" onClose={onClose}
+               onSubmit={async () => {
+                 await api(`/tracker/${id}/handover/answer`, { method: "POST", body: { accept: false, reason } });
+                 qc.invalidateQueries({ queryKey: ["tracker"] });
+                 navigate("/app/tracker");
+               }}>
+      <Field label="Why can't you take it?"><Input required minLength={2} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus /></Field>
     </FormModal>
   );
 }

@@ -396,6 +396,7 @@ export interface TrackerSummary {
   steps_signed: number;
   steps_total: number;
   last_update_at: string;
+  handover: { to: PersonRef; note: string | null; at: string } | null;   // waiting for that person to accept
 }
 
 export interface TrackerStep {
@@ -424,6 +425,10 @@ export interface TrackerDetail extends TrackerSummary {
   can_record: boolean;
   can_manage: boolean;
   can_add_step: boolean;
+  can_delete: boolean;
+  can_hand_over: boolean;
+  can_answer_handover: boolean;
+  can_withdraw_handover: boolean;
 }
 
 // ---------------------------------------------------------------- notifications

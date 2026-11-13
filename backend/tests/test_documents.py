@@ -135,14 +135,20 @@ def test_preview_only_for_safe_types_and_version_must_match(make_client, org):
 
 
 def test_delete_is_soft_audited_and_keeps_versions(make_client, org, db):
-    lead, chair = login(make_client, org.ops_lead), login(make_client, org.chair)
+    lead, chair, vc, sec = (login(make_client, u) for u in (org.ops_lead, org.chair, org.vc, org.secretary))
     folder = _folder(lead, _event(lead, org.ops))
     doc_id = _upload(lead, folder).json()["id"]
+    other = _upload(lead, folder, title="Budget").json()["id"]
 
+    # Only the Chairperson and Vice Chairperson delete.
     assert lead.delete(f"/api/documents/{doc_id}").status_code == 403
+    assert sec.delete(f"/api/documents/{doc_id}").status_code == 403
+    assert sec.get(f"/api/documents/{doc_id}").json()["can_delete"] is False
+    assert vc.get(f"/api/documents/{doc_id}").json()["can_delete"] is True
+    assert vc.delete(f"/api/documents/{other}").status_code == 204
     assert chair.delete(f"/api/documents/{doc_id}").status_code == 204
     assert lead.get(f"/api/documents/{doc_id}").status_code == 404
-    assert lead.get("/api/documents").json() == []
+    assert lead.get("/api/documents").json() == []                       # both are gone
     assert db.scalar(text("SELECT count(*) FROM document_versions WHERE document_id = :d"), {"d": doc_id}) == 1
     assert db.query(AuditEvent).filter_by(action="document.delete", entity_id=doc_id).count() == 1
     # A folder that ever held a document stays.

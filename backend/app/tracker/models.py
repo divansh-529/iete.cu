@@ -10,7 +10,8 @@ from app.core.db import Base
 TRACKER_STATUSES = ("in_progress", "completed", "rejected", "cancelled")
 STEP_STATUSES = ("pending", "submitted", "returned", "signed", "rejected")
 # What the timeline records. The last four are recorded at a step by the person carrying the document.
-TIMELINE_KINDS = ("created", "assigned", "step_added", "completed", "cancelled", "submitted", "returned", "signed", "rejected")
+TIMELINE_KINDS = ("created", "assigned", "step_added", "completed", "cancelled", "submitted", "returned", "signed", "rejected",
+                  "handover_requested", "handover_accepted", "handover_declined", "handover_withdrawn")
 
 
 class TrackedDocument(Base):
@@ -26,6 +27,13 @@ class TrackedDocument(Base):
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Deleting hides the document; it and its timeline stay in the database for the audit log.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deleted_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    # A handover the carrier asked for, waiting for that person to accept.
+    handover_to: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
+    handover_note: Mapped[str | None] = mapped_column(Text)
+    handover_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class TrackerStep(Base):

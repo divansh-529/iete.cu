@@ -16,6 +16,7 @@ from app.users.models import User
 
 ALL_DEPARTMENTS_POSITIONS = {"Joint Secretary", "Secretary", "Vice Chairperson", "Chairperson"}
 ACCOUNTS_POSITIONS = {"Joint Secretary", "Vice Chairperson", "Chairperson"}
+DELETE_DOCUMENTS_POSITIONS = {"Vice Chairperson", "Chairperson"}
 SHOWN_STATUSES = ("active", "invited")      # not suspended, deactivated, deleted or still proposed
 COLUMNS = (("S.No", 7), ("Name", 26), ("Email", 34), ("Uid", 16), ("Mobile No", 16), ("Department", 26), ("Academic Block", 16))
 TITLE_FILL, HEADER_FILL = PatternFill("solid", fgColor="D9E1F2"), PatternFill("solid", fgColor="1F3864")
@@ -38,6 +39,11 @@ def led_departments(db: Session, user: User) -> set[int]:
 
 def can_view_roster(db: Session, user: User) -> bool:
     return sees_all(db, user) or bool(led_departments(db, user))
+
+
+def can_delete_documents(db: Session, user: User) -> bool:
+    """Files in Documents and entries in the Document tracker (the Chairperson's rule, 2026-11-13)."""
+    return user.is_super_admin or any(p.title in DELETE_DOCUMENTS_POSITIONS for p in _held(db, user))
 
 
 def can_view_accounts(db: Session, user: User) -> bool:

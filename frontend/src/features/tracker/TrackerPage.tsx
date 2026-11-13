@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
+import { useAuth } from "../../auth/AuthContext";
 import { api, ApiError, errorMessage } from "../../api/client";
 import type { PersonRef, TrackerAccess, TrackerDetail, TrackerSummary } from "../../api/types";
 import { Alert, Badge, Button, Card, cx, Empty, Field, formatDate, Input, PageHeader, Select, Spinner, Tabs,
@@ -14,6 +15,7 @@ const OFFICES = ["HOD", "AD", "ED", "Dean", "Director", "Registrar", "PVC", "VC"
 
 /** Paper documents carried from office to office for signatures, with a timeline for each. */
 export function TrackerPage() {
+  const { me } = useAuth();
   const [params, setParams] = useSearchParams();
   const [adding, setAdding] = useState(false);
   const [status, setStatus] = useState("");
@@ -46,7 +48,8 @@ export function TrackerPage() {
                       {d.reference_no && `${d.reference_no} · `}Carried by {d.assigned_to.full_name} · updated {formatDate(d.last_update_at, false)}
                     </span>
                   </span>
-                  <span className="flex items-center gap-3">
+                  <span className="flex flex-wrap items-center gap-3">
+                    {d.handover && <Badge tone="violet">{d.handover.to.id === me?.user.id ? "Handed to you: accept it" : `Waiting for ${d.handover.to.full_name}`}</Badge>}
                     <Progress signed={d.steps_signed} total={d.steps_total} />
                     {d.current_step ? <Badge tone="amber">At {d.current_step}</Badge>
                       : <Badge tone={TRACKER_STATUS[d.status][0]}>{TRACKER_STATUS[d.status][1]}</Badge>}

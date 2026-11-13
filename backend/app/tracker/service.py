@@ -7,7 +7,12 @@ a note and an optional photo or scan. Every record stays on the document's timel
 Who sees a document: the person carrying it, whoever added it, and the Chairperson, Vice Chairperson,
 Secretary and Joint Secretary (by position held). The same people record steps. Reassigning, adding
 a step and cancelling are for whoever added it and those four; the carrier can also add a step,
-because they are the one told at an office that another signature is needed.
+because they are the one told at an office that another signature is needed. Only the Chairperson and
+Vice Chairperson delete, which hides the document but keeps it and its timeline in the database.
+
+Handover: the carrier can hand the document to someone else for the next signatures. That person can
+open it and must accept before they become the carrier; until then the first person still carries it.
+They can also decline with a reason, and the carrier, whoever added it or a leader can withdraw it.
 """
 import uuid
 from datetime import date, timedelta
@@ -21,7 +26,7 @@ from app.core.time import utcnow
 from app.documents import storage
 from app.documents.service import PREVIEWABLE, check_file
 from app.notifications.service import notify
-from app.org.roster import sees_all
+from app.org.roster import can_delete_documents, sees_all
 from app.org.service import people_by_id
 from app.tracker.models import TrackedDocument, TrackerStep, TrackerUpdate
 from app.tracker.schemas import TrackerIn
@@ -43,8 +48,17 @@ def _team_member(db: Session, user_id: int) -> User:
     return user
 
 
-def _can_see(db: Session, user: User, doc: TrackedDocument) -> bool:
+def _involved(db: Session, user: User, doc: TrackedDocument) -> bool:
     return user.id in (doc.assigned_to, doc.created_by) or sees_all(db, user)
+
+
+def _can_see(db: Session, user: User, doc: TrackedDocument) -> bool:
+    """Someone offered a handover can see the document, so they know what they're accepting."""
+    return _involved(db, user, doc) or user.id == doc.handover_to
+
+
+def _end_handover(doc: TrackedDocument) -> None:
+    doc.handover_to = doc.handover_note = doc.handover_at = None
 
 
 def _can_manage(db: Session, user: User, doc: TrackedDocument) -> bool:
@@ -53,7 +67,7 @@ def _can_manage(db: Session, user: User, doc: TrackedDocument) -> bool:
 
 def _get(db: Session, user: User, document_id: int) -> TrackedDocument:
     doc = db.get(TrackedDocument, document_id)
-    if doc is None or not _can_see(db, user, doc):
+    if doc is None or doc.deleted_at is not None or not _can_see(db, user, doc):
         raise not_found("Document")
     return doc
 
@@ -106,6 +120,8 @@ def create(db: Session, actor: User, body: TrackerIn) -> TrackedDocument:
 def record(db: Session, actor: User, document_id: int, status: str, happened_on: date, note: str | None,
            filename: str | None, content: bytes | None) -> None:
     doc = _get(db, actor, document_id)
+    if not _involved(db, actor, doc):
+        raise forbidden("Accept the handover first.")
     _open(doc)
     if status not in STEP_RECORDS:
         raise AppError(422, "VALIDATION_ERROR", "Choose Submitted, Returned with changes, Signed or Rejected.")
@@ -127,6 +143,7 @@ def record(db: Session, actor: User, document_id: int, status: str, happened_on:
     db.add(update)
     if status == "rejected" or (status == "signed" and _current(steps) is None):
         doc.status, doc.closed_at = ("rejected" if status == "rejected" else "completed"), utcnow()
+        _end_handover(doc)
         if doc.status == "completed":
             db.add(TrackerUpdate(document_id=doc.id, kind="completed", happened_on=happened_on, by=actor.id))
     audit.record(db, actor.id, "tracker.record", "tracked_document", doc.id,
@@ -146,6 +163,7 @@ def reassign(db: Session, actor: User, document_id: int, user_id: int) -> None:
         return
     before = doc.assigned_to
     doc.assigned_to = person.id
+    _end_handover(doc)
     db.add(TrackerUpdate(document_id=doc.id, kind="assigned", assigned_to=person.id, by=actor.id))
     audit.record(db, actor.id, "tracker.assign", "tracked_document", doc.id, before={"assigned_to": before},
                  after={"assigned_to": person.id})
@@ -174,9 +192,72 @@ def cancel(db: Session, actor: User, document_id: int, reason: str) -> None:
         raise forbidden("Only whoever added this document, or the leaders, can cancel it.")
     _open(doc)
     doc.status, doc.closed_at = "cancelled", utcnow()
+    _end_handover(doc)
     db.add(TrackerUpdate(document_id=doc.id, kind="cancelled", note=reason.strip(), by=actor.id))
     audit.record(db, actor.id, "tracker.cancel", "tracked_document", doc.id, after={"reason": reason.strip()})
     _tell(db, doc, actor, "tracker.cancelled", reason=reason.strip())
+    db.commit()
+
+
+def hand_over(db: Session, actor: User, document_id: int, user_id: int, note: str | None) -> None:
+    doc = _get(db, actor, document_id)
+    if actor.id != doc.assigned_to:
+        raise forbidden("Only the person carrying the document can hand it over.")
+    _open(doc)
+    if doc.handover_to:
+        raise AppError(409, "HANDOVER_PENDING", "A handover is already waiting. Withdraw it first.")
+    person = _team_member(db, user_id)
+    if person.id == actor.id:
+        raise AppError(422, "INVALID_PERSON", "Choose someone else.")
+    doc.handover_to, doc.handover_note, doc.handover_at = person.id, _clean(note), utcnow()
+    db.add(TrackerUpdate(document_id=doc.id, kind="handover_requested", assigned_to=person.id, note=doc.handover_note, by=actor.id))
+    audit.record(db, actor.id, "tracker.handover", "tracked_document", doc.id, after={"to": person.id, "note": doc.handover_note})
+    notify(db, [person.id], "tracker.handover", {"document_id": doc.id, "title": doc.title, "by": actor.full_name,
+                                                 "note": doc.handover_note}, actor.id)
+    db.commit()
+
+
+def answer_handover(db: Session, actor: User, document_id: int, accept: bool, reason: str | None) -> None:
+    doc = _get(db, actor, document_id)
+    if actor.id != doc.handover_to:
+        raise forbidden("This handover isn't for you.")
+    _open(doc)
+    reason = _clean(reason)
+    if not accept and not reason:
+        raise AppError(422, "REASON_REQUIRED", "Please say why you can't take it.")
+    before = doc.assigned_to
+    if accept:
+        doc.assigned_to = actor.id
+    _end_handover(doc)
+    db.add(TrackerUpdate(document_id=doc.id, kind="handover_accepted" if accept else "handover_declined",
+                         assigned_to=actor.id, note=reason, by=actor.id))
+    audit.record(db, actor.id, "tracker.handover_accept" if accept else "tracker.handover_decline", "tracked_document", doc.id,
+                 before={"assigned_to": before}, after={"assigned_to": doc.assigned_to, "reason": reason})
+    notify(db, {before, doc.created_by}, "tracker.handover_answered",
+           {"document_id": doc.id, "title": doc.title, "by": actor.full_name, "accepted": accept, "reason": reason}, actor.id)
+    db.commit()
+
+
+def withdraw_handover(db: Session, actor: User, document_id: int) -> None:
+    doc = _get(db, actor, document_id)
+    if not (actor.id == doc.assigned_to or _can_manage(db, actor, doc)):
+        raise forbidden()
+    if not doc.handover_to:
+        raise AppError(409, "NO_HANDOVER", "There is no handover waiting.")
+    offered = doc.handover_to
+    _end_handover(doc)
+    db.add(TrackerUpdate(document_id=doc.id, kind="handover_withdrawn", assigned_to=offered, by=actor.id))
+    audit.record(db, actor.id, "tracker.handover_withdraw", "tracked_document", doc.id, after={"to": offered})
+    db.commit()
+
+
+def delete(db: Session, actor: User, document_id: int, reason: str) -> None:
+    doc = _get(db, actor, document_id)
+    if not can_delete_documents(db, actor):
+        raise forbidden("Only the Chairperson and Vice Chairperson can delete documents.")
+    doc.deleted_at, doc.deleted_by = utcnow(), actor.id
+    audit.record(db, actor.id, "tracker.delete", "tracked_document", doc.id,
+                 before={"title": doc.title, "status": doc.status}, after={"reason": reason.strip()})
     db.commit()
 
 
@@ -197,7 +278,7 @@ def _summaries(db: Session, docs: list[TrackedDocument]) -> list[dict]:
         steps[s.document_id].append(s)
     last = dict(db.execute(select(TrackerUpdate.document_id, func.max(TrackerUpdate.at))
                            .where(TrackerUpdate.document_id.in_(ids)).group_by(TrackerUpdate.document_id)).all())
-    people = people_by_id(db, {d.assigned_to for d in docs} | {d.created_by for d in docs})
+    people = people_by_id(db, {d.assigned_to for d in docs} | {d.created_by for d in docs} | {d.handover_to for d in docs})
     out = []
     for d in docs:
         current = _current(steps[d.id]) if d.status == "in_progress" else None
@@ -205,14 +286,16 @@ def _summaries(db: Session, docs: list[TrackedDocument]) -> list[dict]:
                     "assigned_to": people[d.assigned_to], "created_by": people[d.created_by], "created_at": d.created_at,
                     "current_step": current.authority if current else None,
                     "steps_signed": sum(1 for s in steps[d.id] if s.status == "signed"), "steps_total": len(steps[d.id]),
-                    "last_update_at": last.get(d.id, d.created_at)})
+                    "last_update_at": last.get(d.id, d.created_at),
+                    "handover": {"to": people[d.handover_to], "note": d.handover_note, "at": d.handover_at} if d.handover_to else None})
     return out
 
 
 def listing(db: Session, user: User, view: str, status: str | None) -> list[dict]:
-    stmt = select(TrackedDocument)
+    stmt = select(TrackedDocument).where(TrackedDocument.deleted_at.is_(None))
     if view != "all" or not sees_all(db, user):
-        stmt = stmt.where(or_(TrackedDocument.assigned_to == user.id, TrackedDocument.created_by == user.id))
+        stmt = stmt.where(or_(TrackedDocument.assigned_to == user.id, TrackedDocument.created_by == user.id,
+                              TrackedDocument.handover_to == user.id))
     if status:
         stmt = stmt.where(TrackedDocument.status == status)
     docs = list(db.scalars(stmt.order_by(TrackedDocument.id.desc()).limit(300)))
@@ -232,8 +315,13 @@ def detail(db: Session, user: User, document_id: int) -> dict:
     open_ = doc.status == "in_progress"
     return {**_summaries(db, [doc])[0], "description": doc.description,
             "steps": [{"id": s.id, "step_no": s.step_no, "authority": s.authority, "status": s.status} for s in steps],
-            "timeline": timeline, "can_record": open_, "can_manage": open_ and _can_manage(db, user, doc),
-            "can_add_step": open_ and (_can_manage(db, user, doc) or user.id == doc.assigned_to)}
+            "timeline": timeline, "can_record": open_ and _involved(db, user, doc),
+            "can_manage": open_ and _can_manage(db, user, doc),
+            "can_add_step": open_ and (_can_manage(db, user, doc) or user.id == doc.assigned_to),
+            "can_hand_over": open_ and user.id == doc.assigned_to and not doc.handover_to,
+            "can_answer_handover": open_ and user.id == doc.handover_to,
+            "can_withdraw_handover": bool(doc.handover_to) and (user.id == doc.assigned_to or _can_manage(db, user, doc)),
+            "can_delete": can_delete_documents(db, user)}
 
 
 def sees_every_document(db: Session, user: User) -> bool:

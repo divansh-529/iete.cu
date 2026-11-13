@@ -18,6 +18,7 @@ from app.documents.schemas import FolderIn, FolderRenameIn, ReviewIn
 from app.events.models import Event, EventDepartment, EventTeamMember
 from app.events.service import _on_team, event_scope
 from app.notifications.service import notify
+from app.org.roster import can_delete_documents
 from app.permissions import engine
 from app.permissions.engine import GLOBAL, Scope, can, visible_department_ids
 from app.users.models import User
@@ -258,8 +259,9 @@ def download_url(db: Session, user: User, document_id: int, version_id: int | No
 
 
 def soft_delete(db: Session, actor: User, document_id: int) -> None:
-    doc, folder, access = _document(db, actor, document_id)
-    engine.ensure(db, actor, "documents.delete", access.scope)
+    doc, folder, _ = _document(db, actor, document_id)
+    if not can_delete_documents(db, actor):
+        raise forbidden("Only the Chairperson and Vice Chairperson can delete documents.")
     doc.deleted_at, doc.deleted_by = utcnow(), actor.id
     audit.record(db, actor.id, "document.delete", "document", doc.id,
                  before={"title": doc.title, "folder": folder.name, "status": doc.status})
@@ -333,4 +335,4 @@ def detail(db: Session, user: User, document_id: int) -> dict:
                          "reviewer": _person(db, r.reviewer_id), "created_at": r.created_at} for r in reviews],
             "allowed_reviews": _allowed_reviews(db, user, doc, access),
             "can_upload_version": access.upload and doc.status not in LOCKED,
-            "can_delete": can(db, user, "documents.delete", access.scope)}
+            "can_delete": can_delete_documents(db, user)}

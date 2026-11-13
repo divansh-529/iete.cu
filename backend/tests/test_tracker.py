@@ -135,3 +135,64 @@ def test_timeline_cannot_be_changed_in_the_database(make_client, org, db):
     with pytest.raises(Exception, match="cannot be changed"):
         db.execute(text("UPDATE tracked_document_updates SET note = 'edited'"))
     db.rollback()
+
+
+def test_only_chairperson_and_vice_chairperson_delete(make_client, org, db):
+    member, sec, vc, chair = (login(make_client, u) for u in (org.ops_member, org.secretary, org.vc, org.chair))
+    first, second = _new(member, org.tech_member).json(), _new(member, org.tech_member, title="Sponsor letter").json()
+    assert member.get(f"/api/tracker/{first['id']}").json()["can_delete"] is False
+    for client in (member, sec):
+        assert client.post(f"/api/tracker/{first['id']}/delete", json={"reason": "Duplicate"}).status_code == 403
+    assert vc.post(f"/api/tracker/{first['id']}/delete", json={"reason": "Duplicate"}).status_code == 204
+    assert chair.post(f"/api/tracker/{second['id']}/delete", json={"reason": "Entered by mistake"}).status_code == 204
+    assert member.get(f"/api/tracker/{first['id']}").status_code == 404
+    assert member.get("/api/tracker").json() == [] and vc.get("/api/tracker", params={"view": "all"}).json() == []
+    # Kept in the database, with its timeline, and the deletion is audited.
+    assert db.scalar(text("SELECT count(*) FROM tracked_document_updates WHERE document_id = :d"), {"d": first["id"]}) == 1
+    assert db.scalar(text("SELECT count(*) FROM audit_events WHERE action = 'tracker.delete'")) == 2
+
+
+def test_carrier_hands_over_and_the_next_person_accepts_first(make_client, org):
+    member, carrier, lead = (login(make_client, u) for u in (org.ops_member, org.tech_member, org.ops_lead))
+    doc = _new(member, org.tech_member).json()
+    _record(carrier, doc["id"], "signed")                                        # AD signed
+
+    assert member.post(f"/api/tracker/{doc['id']}/handover", json={"user_id": org.ops_lead.id}).status_code == 403
+    assert lead.get(f"/api/tracker/{doc['id']}").status_code == 404              # not offered yet
+    r = carrier.post(f"/api/tracker/{doc['id']}/handover", json={"user_id": org.ops_lead.id, "note": "Please take it to ED"})
+    assert r.status_code == 200 and r.json()["handover"]["to"]["id"] == org.ops_lead.id
+    assert carrier.post(f"/api/tracker/{doc['id']}/handover", json={"user_id": org.vc.id}).json()["error"]["code"] == "HANDOVER_PENDING"
+    assert notifications(lead, "tracker.handover")
+
+    # The offered person sees it but can't act on it until they accept; the carrier still carries it.
+    offered = lead.get(f"/api/tracker/{doc['id']}").json()
+    assert (offered["can_answer_handover"], offered["can_record"], offered["assigned_to"]["id"]) == (True, False, org.tech_member.id)
+    assert [d["id"] for d in lead.get("/api/tracker").json()] == [doc["id"]]
+    assert _record(lead, doc["id"], "submitted").status_code == 403
+    assert carrier.post(f"/api/tracker/{doc['id']}/handover/answer", json={"accept": True}).status_code == 403
+    assert lead.post(f"/api/tracker/{doc['id']}/handover/answer", json={"accept": False}).json()["error"]["code"] == "REASON_REQUIRED"
+
+    assert lead.post(f"/api/tracker/{doc['id']}/handover/answer", json={"accept": True}).status_code == 204
+    now = lead.get(f"/api/tracker/{doc['id']}").json()
+    assert (now["assigned_to"]["id"], now["handover"], now["can_record"]) == (org.ops_lead.id, None, True)
+    assert notifications(carrier, "tracker.handover_answered")
+    assert carrier.get(f"/api/tracker/{doc['id']}").status_code == 404           # handed over
+    assert _record(lead, doc["id"], "signed").json()["steps_signed"] == 2
+    assert [t["kind"] for t in now["timeline"]][-2:] == ["handover_requested", "handover_accepted"]
+
+
+def test_handover_declined_or_withdrawn_keeps_the_carrier(make_client, org):
+    member, carrier, lead, vc = (login(make_client, u) for u in (org.ops_member, org.tech_member, org.ops_lead, org.vc))
+    doc = _new(member, org.tech_member).json()
+    carrier.post(f"/api/tracker/{doc['id']}/handover", json={"user_id": org.ops_lead.id})
+    assert lead.post(f"/api/tracker/{doc['id']}/handover/answer", json={"accept": False, "reason": "Out of town"}).status_code == 204
+    after = carrier.get(f"/api/tracker/{doc['id']}").json()
+    assert (after["assigned_to"]["id"], after["handover"]) == (org.tech_member.id, None)
+    assert lead.get(f"/api/tracker/{doc['id']}").status_code == 404
+
+    carrier.post(f"/api/tracker/{doc['id']}/handover", json={"user_id": org.ops_lead.id})
+    assert lead.post(f"/api/tracker/{doc['id']}/handover/withdraw").status_code == 403
+    assert vc.post(f"/api/tracker/{doc['id']}/handover/withdraw").json()["handover"] is None
+    assert lead.post(f"/api/tracker/{doc['id']}/handover/answer", json={"accept": True}).status_code == 404
+    kinds = [t["kind"] for t in carrier.get(f"/api/tracker/{doc['id']}").json()["timeline"]]
+    assert kinds == ["created", "handover_requested", "handover_declined", "handover_requested", "handover_withdrawn"]
